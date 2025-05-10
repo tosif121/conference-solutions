@@ -11,12 +11,12 @@ import toast from 'react-hot-toast';
 import Cookies from 'js-cookie';
 
 const navLinks = [
-  { name: 'Dashboard', href: '/super-admin/dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-  { name: 'Manage Admins', href: '/super-admin/users', icon: <Users className="w-4 h-4" /> },
-  { name: 'Assign DIDs', href: '/super-admin/dids', icon: <Phone className="w-4 h-4" /> },
+  { name: 'Dashboard', href: '/admin/dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
+  // { name: 'Manage Admins', href: '/admin/users', icon: <Users className="w-4 h-4" /> },
+  // { name: 'Assign DIDs', href: '/admin/dids', icon: <Phone className="w-4 h-4" /> },
 ];
 
-export default function Header() {
+export default function HeaderAdmin() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -40,7 +40,7 @@ export default function Header() {
             <Shield className="w-5 h-5 text-primary" />
           </div>
           <span className="text-lg font-bold text-slate-800 dark:text-white hidden sm:block">Call Conference</span>
-          <span className="text-sm font-medium text-primary/80 hidden sm:block">| Super Admin</span>
+          <span className="text-sm font-medium text-primary/80 hidden sm:block">| Admin</span>
         </div>
 
         {/* Desktop Nav */}

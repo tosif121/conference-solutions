@@ -9,7 +9,7 @@ import { Eye, EyeOff, Lock, User, Shield, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 
-export default function SuperAdminLogin() {
+export default function AdminLogin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -47,12 +47,12 @@ export default function SuperAdminLogin() {
     // Simulate API call with small delay
     setTimeout(() => {
       if (username === 'admin' && password === 'password') {
-        Cookies.set('super_admin_token', 'your-token-value', {
+        Cookies.set('admin_token', 'your-token-value', {
           expires: 1, // 1 day
           path: '/',
         });
         toast.success('Login Successful');
-        router.push('/super-admin/dashboard');
+        router.push('/admin/dashboard');
       } else {
         toast.error('Invalid credentials');
         setIsLoading(false);
@@ -80,7 +80,7 @@ export default function SuperAdminLogin() {
 
           <CardContent className="p-8">
             <div className="mb-8 text-center">
-              <h1 className="text-3xl font-bold tracking-tight">Super Admin Login</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Admin Login</h1>
               <p className="text-sm text-muted-foreground mt-2">Call Conference Controls</p>
             </div>
 

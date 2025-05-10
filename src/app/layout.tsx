@@ -11,12 +11,10 @@ const Layout = dynamic(() => import('@/components/layout/Layout'));
 
 const inter = Inter({ subsets: ['latin'] });
 
-const PUBLIC_PATHS = ['/super-admin/login'];
+const PUBLIC_PATHS = ['/super-admin/login', '/admin/login'];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-
-  // Check if current path matches any public path
   const isPublicPage = PUBLIC_PATHS.some((path) => pathname === path);
 
   return (

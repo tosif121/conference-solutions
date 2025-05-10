@@ -1,35 +1,53 @@
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-// Paths that don't require authentication
-const PUBLIC_PATHS = ['/super-admin/login'];
+// Define public paths that don't require authentication
+const PUBLIC_PATHS = ['/super-admin/login', '/admin/login'];
 
-export function middleware(req: { nextUrl: { pathname: any; }; cookies: { get: (arg0: string) => { (): any; new(): any; value: any; }; }; url: string | URL | undefined; }) {
-  const path = req.nextUrl.pathname;
-  const token = req.cookies.get('super_admin_token')?.value;
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
 
-  // Handle public paths
-  if (PUBLIC_PATHS.some(publicPath => path === publicPath)) {
-    if (token) {
-      // Redirect to dashboard if already authenticated
+  // Retrieve tokens from cookies
+  const superAdminToken = req.cookies.get('super_admin_token')?.value;
+  const adminToken = req.cookies.get('admin_token')?.value;
+
+  // Allow access to public paths
+  if (PUBLIC_PATHS.includes(pathname)) {
+    // Redirect authenticated users away from login pages
+    if (pathname === '/super-admin/login' && superAdminToken) {
       return NextResponse.redirect(new URL('/super-admin/dashboard', req.url));
+    }
+    if (pathname === '/admin/login' && adminToken) {
+      return NextResponse.redirect(new URL('/admin/dashboard', req.url));
     }
     return NextResponse.next();
   }
 
-  // Check if path is under super-admin and requires protection
-  if (path.startsWith('/super-admin') && !token) {
-    return NextResponse.redirect(new URL('/super-admin/login', req.url));
+  // Protect super-admin routes
+  if (pathname.startsWith('/super-admin')) {
+    if (!superAdminToken) {
+      return NextResponse.redirect(new URL('/super-admin/login', req.url));
+    }
+    return NextResponse.next();
   }
 
+  // Protect admin routes
+  if (pathname.startsWith('/admin')) {
+    if (!adminToken) {
+      return NextResponse.redirect(new URL('/admin/login', req.url));
+    }
+    return NextResponse.next();
+  }
+
+  // Allow access to all other routes
   return NextResponse.next();
 }
 
-// Configure which paths the middleware should run on
+// Configure middleware to run on specific paths
 export const config = {
   matcher: [
-    // Match all super-admin paths
     '/super-admin/:path*',
-    // Exclude static files and API routes
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.svg$).*)'
+    '/admin/:path*',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.svg$).*)',
   ],
 };

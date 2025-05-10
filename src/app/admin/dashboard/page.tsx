@@ -1,0 +1,6 @@
+import dynamic from 'next/dynamic';
+
+const AdminDashboard = dynamic(() => import('@/components/AdminDashboard'));
+export default function Home() {
+  return <AdminDashboard />;
+}
