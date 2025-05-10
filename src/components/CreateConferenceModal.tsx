@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTrigger, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,18 +8,48 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Calendar, Phone, User, Plus, Trash2 } from 'lucide-react';
+import { Calendar, Phone, User, Plus, Trash2, FileAudio } from 'lucide-react';
+
+// Define types
+interface Host {
+  name: string;
+  phoneNumber: string;
+}
+
+interface Guest {
+  name: string;
+  phoneNumber: string;
+  retryCount: number;
+}
+
+interface FormData {
+  conferenceName: string;
+  description: string;
+  host: Host;
+  guests: Guest[];
+  welcomeAudioId: string;
+  playWelcomeAudio: boolean;
+  retryOnNoAnswer: boolean;
+  announcementEnabled: boolean;
+  pinProtected: boolean;
+  hostPin: string;
+  guestPin: string;
+  scheduledAt: string;
+}
+
+interface FormErrors {
+  [key: string]: string;
+}
 
 export default function CreateConferenceModal() {
-  const [open, setOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [open, setOpen] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errors, setErrors] = useState<FormErrors>({});
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     conferenceName: '',
     description: '',
-    hosts: [{ name: '', phoneNumber: '' }],
+    host: { name: '', phoneNumber: '' },
     guests: [{ name: '', phoneNumber: '', retryCount: 1 }],
     welcomeAudioId: '',
     playWelcomeAudio: false,
@@ -39,36 +61,33 @@ export default function CreateConferenceModal() {
     scheduledAt: '',
   });
 
-  const validateForm = () => {
-    const newErrors = {};
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
 
     // Required fields validation
     if (!formData.conferenceName.trim()) newErrors.conferenceName = 'Conference name is required';
-    
+
     // Host validation
-    formData.hosts.forEach((host, index) => {
-      if (!host.name.trim()) newErrors[`hostName_${index}`] = 'Host name is required';
-      if (!host.phoneNumber.trim()) newErrors[`hostPhone_${index}`] = 'Host phone is required';
-      
-      // Phone validation (simple regex for demonstration)
-      const phoneRegex = /^\+?[0-9]{10,15}$/;
-      if (host.phoneNumber && !phoneRegex.test(host.phoneNumber.replace(/\s+/g, ''))) {
-        newErrors[`hostPhone_${index}`] = 'Please enter a valid phone number';
-      }
-    });
+    if (!formData.host.name.trim()) newErrors.hostName = 'Host name is required';
+    if (!formData.host.phoneNumber.trim()) newErrors.hostPhone = 'Host phone is required';
+
+    // Phone validation (simple regex for demonstration)
+    const phoneRegex = /^\+?[0-9]{10,15}$/;
+    if (formData.host.phoneNumber && !phoneRegex.test(formData.host.phoneNumber.replace(/\s+/g, ''))) {
+      newErrors.hostPhone = 'Please enter a valid phone number';
+    }
 
     // Guest validation
     formData.guests.forEach((guest, index) => {
       if (guest.phoneNumber && !guest.name.trim()) {
         newErrors[`guestName_${index}`] = 'Guest name is required if phone is provided';
       }
-      
+
       if (guest.name && !guest.phoneNumber.trim()) {
         newErrors[`guestPhone_${index}`] = 'Guest phone is required if name is provided';
       }
-      
+
       // Phone validation for guests
-      const phoneRegex = /^\+?[0-9]{10,15}$/;
       if (guest.phoneNumber && !phoneRegex.test(guest.phoneNumber.replace(/\s+/g, ''))) {
         newErrors[`guestPhone_${index}`] = 'Please enter a valid phone number';
       }
@@ -101,11 +120,16 @@ export default function CreateConferenceModal() {
       }
     }
 
+    // Welcome Audio validation when enabled
+    if (formData.playWelcomeAudio && !formData.welcomeAudioId.trim()) {
+      newErrors.welcomeAudioId = 'Welcome Audio ID is required when welcome audio is enabled';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (): Promise<void> => {
     if (!validateForm()) {
       toast.error('Please fix the errors in the form');
       return;
@@ -118,8 +142,8 @@ export default function CreateConferenceModal() {
       const payload = {
         conferenceName: formData.conferenceName,
         description: formData.description,
-        hosts: formData.hosts,
-        guests: formData.guests.filter(guest => guest.name || guest.phoneNumber),
+        host: formData.host,
+        guests: formData.guests.filter((guest) => guest.name || guest.phoneNumber),
         welcomeAudioId: formData.welcomeAudioId,
         playWelcomeAudio: formData.playWelcomeAudio,
         retryOnNoAnswer: formData.retryOnNoAnswer,
@@ -146,11 +170,11 @@ export default function CreateConferenceModal() {
     }
   };
 
-  const resetForm = () => {
+  const resetForm = (): void => {
     setFormData({
       conferenceName: '',
       description: '',
-      hosts: [{ name: '', phoneNumber: '' }],
+      host: { name: '', phoneNumber: '' },
       guests: [{ name: '', phoneNumber: '', retryCount: 1 }],
       welcomeAudioId: '',
       playWelcomeAudio: false,
@@ -164,70 +188,54 @@ export default function CreateConferenceModal() {
     setErrors({});
   };
 
-  const handleOpenChange = (newOpen) => {
+  const handleOpenChange = (newOpen: boolean): void => {
     if (!newOpen) {
       resetForm();
     }
     setOpen(newOpen);
   };
 
-  // Add a new host
-  const addHost = () => {
-    setFormData({
-      ...formData,
-      hosts: [...formData.hosts, { name: '', phoneNumber: '' }]
-    });
-  };
-
-  // Remove a host
-  const removeHost = (index) => {
-    if (formData.hosts.length > 1) {
-      const newHosts = [...formData.hosts];
-      newHosts.splice(index, 1);
-      setFormData({
-        ...formData,
-        hosts: newHosts
-      });
-    }
-  };
-
   // Add a new guest
-  const addGuest = () => {
+  const addGuest = (): void => {
     setFormData({
       ...formData,
-      guests: [...formData.guests, { name: '', phoneNumber: '', retryCount: 1 }]
+      guests: [...formData.guests, { name: '', phoneNumber: '', retryCount: 1 }],
     });
   };
 
   // Remove a guest
-  const removeGuest = (index) => {
+  const removeGuest = (index: number): void => {
     if (formData.guests.length > 1) {
       const newGuests = [...formData.guests];
       newGuests.splice(index, 1);
       setFormData({
         ...formData,
-        guests: newGuests
+        guests: newGuests,
       });
     }
   };
 
   // Update host fields
-  const updateHostField = (index, field, value) => {
-    const newHosts = [...formData.hosts];
-    newHosts[index][field] = value;
+  const updateHostField = (field: keyof Host, value: string): void => {
     setFormData({
       ...formData,
-      hosts: newHosts
+      host: {
+        ...formData.host,
+        [field]: value,
+      },
     });
   };
 
   // Update guest fields
-  const updateGuestField = (index, field, value) => {
+  const updateGuestField = (index: number, field: keyof Guest, value: string | number): void => {
     const newGuests = [...formData.guests];
-    newGuests[index][field] = value;
+    newGuests[index] = {
+      ...newGuests[index],
+      [field]: value,
+    };
     setFormData({
       ...formData,
-      guests: newGuests
+      guests: newGuests,
     });
   };
 
@@ -238,11 +246,11 @@ export default function CreateConferenceModal() {
       </DialogTrigger>
 
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogTitle>Create New Conference</DialogTitle>
+        
         <div className="mt-4 space-y-6">
           {/* Conference Details Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Conference Details</h3>
-
             <div className="space-y-2">
               <Label htmlFor="conferenceName" className="flex items-center space-x-1">
                 <span>Conference Name</span>
@@ -287,89 +295,59 @@ export default function CreateConferenceModal() {
             </div>
           </div>
 
-          {/* Hosts Section */}
+          {/* Host Section */}
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Hosts</h3>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                onClick={addHost}
-                className="flex items-center space-x-1"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Host</span>
-              </Button>
-            </div>
+            <h3 className="text-lg font-semibold">Host</h3>
 
-            {formData.hosts.map((host, index) => (
-              <div key={`host-${index}`} className="p-4 border rounded-md relative">
-                {formData.hosts.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeHost(index)}
-                    className="absolute top-2 right-2 p-1 h-8 w-8"
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
-                )}
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor={`hostName-${index}`} className="flex items-center space-x-1">
-                      <span>Host Name</span>
-                      <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id={`hostName-${index}`}
-                        value={host.name}
-                        onChange={(e) => updateHostField(index, 'name', e.target.value)}
-                        placeholder="Enter host name"
-                        className={`pl-10 ${errors[`hostName_${index}`] ? 'border-red-500' : ''}`}
-                      />
-                      <User className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
-                    </div>
-                    {errors[`hostName_${index}`] && (
-                      <p className="text-red-500 text-sm">{errors[`hostName_${index}`]}</p>
-                    )}
+            <div className="p-4 border rounded-md">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="hostName" className="flex items-center space-x-1">
+                    <span>Host Name</span>
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="hostName"
+                      value={formData.host.name}
+                      onChange={(e) => updateHostField('name', e.target.value)}
+                      placeholder="Enter host name"
+                      className={`pl-10 ${errors.hostName ? 'border-red-500' : ''}`}
+                    />
+                    <User className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
                   </div>
+                  {errors.hostName && <p className="text-red-500 text-sm">{errors.hostName}</p>}
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor={`hostPhone-${index}`} className="flex items-center space-x-1">
-                      <span>Host Phone</span>
-                      <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id={`hostPhone-${index}`}
-                        value={host.phoneNumber}
-                        onChange={(e) => updateHostField(index, 'phoneNumber', e.target.value)}
-                        placeholder="+1234567890"
-                        className={`pl-10 ${errors[`hostPhone_${index}`] ? 'border-red-500' : ''}`}
-                      />
-                      <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
-                    </div>
-                    {errors[`hostPhone_${index}`] && (
-                      <p className="text-red-500 text-sm">{errors[`hostPhone_${index}`]}</p>
-                    )}
+                <div className="space-y-2">
+                  <Label htmlFor="hostPhone" className="flex items-center space-x-1">
+                    <span>Host Phone</span>
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="hostPhone"
+                      value={formData.host.phoneNumber}
+                      onChange={(e) => updateHostField('phoneNumber', e.target.value)}
+                      placeholder="+1234567890"
+                      className={`pl-10 ${errors.hostPhone ? 'border-red-500' : ''}`}
+                    />
+                    <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
                   </div>
+                  {errors.hostPhone && <p className="text-red-500 text-sm">{errors.hostPhone}</p>}
                 </div>
               </div>
-            ))}
+            </div>
           </div>
 
           {/* Guests Section */}
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Guests</h3>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
                 onClick={addGuest}
                 className="flex items-center space-x-1"
               >
@@ -391,7 +369,7 @@ export default function CreateConferenceModal() {
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
                 )}
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor={`guestName-${index}`}>Guest Name</Label>
@@ -426,7 +404,7 @@ export default function CreateConferenceModal() {
                       <p className="text-red-500 text-sm">{errors[`guestPhone_${index}`]}</p>
                     )}
                   </div>
-                  
+
                   {formData.retryOnNoAnswer && (
                     <div className="space-y-2 col-span-2">
                       <Label htmlFor={`retryCount-${index}`}>Retry Count</Label>
@@ -490,6 +468,107 @@ export default function CreateConferenceModal() {
                 </div>
               </div>
             </div>
+
+            {formData.playWelcomeAudio && (
+              <div className="mt-2 p-4 bg-gray-50 rounded-md">
+                <div className="space-y-4">
+                  <Label htmlFor="welcomeAudioId" className="flex items-center space-x-1">
+                    <span>Welcome Audio</span>
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  
+                  {/* Audio File Selector */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="col-span-2">
+                      <div className="relative">
+                        <Input
+                          id="welcomeAudioId"
+                          value={formData.welcomeAudioId}
+                          onChange={(e) => setFormData({ ...formData, welcomeAudioId: e.target.value })}
+                          placeholder="Enter audio ID or select a file"
+                          className={`pl-10 ${errors.welcomeAudioId ? 'border-red-500' : ''}`}
+                          readOnly={false}
+                        />
+                        <FileAudio className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                      </div>
+                      {errors.welcomeAudioId && <p className="text-red-500 text-sm">{errors.welcomeAudioId}</p>}
+                    </div>
+                    
+                    <div>
+                      <Input
+                        id="welcomeAudioFile"
+                        type="file"
+                        accept="audio/*"
+                        className="cursor-pointer"
+                        onChange={(e) => {
+                          // In a real implementation, you would handle file upload here
+                          // and then set the returned ID to welcomeAudioId
+                          if (e.target.files && e.target.files[0]) {
+                            const fileName = e.target.files[0].name;
+                            // Simulate ID generation from filename
+                            const simulatedId = `audio_${fileName.replace(/\.[^/.]+$/, "").replace(/\s+/g, "_").toLowerCase()}_${Date.now().toString().substr(-6)}`;
+                            setFormData({ ...formData, welcomeAudioId: simulatedId });
+                          }
+                        }}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Supported formats: MP3, WAV (max 5MB)</p>
+                    </div>
+                  </div>
+                  
+                  {/* Audio Preview - Would show when audio is selected */}
+                  {formData.welcomeAudioId && (
+                    <div className="p-3 border rounded-md bg-white">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <FileAudio className="h-5 w-5 text-blue-500" />
+                          <span className="text-sm font-medium truncate">
+                            {formData.welcomeAudioId.includes('_') 
+                              ? formData.welcomeAudioId.split('_').slice(1, -1).join('_').replace(/_/g, ' ')
+                              : 'Selected Audio'}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              // In a real implementation, this would play the audio
+                              toast('Audio playback would start here');
+                            }}
+                          >
+                            <svg 
+                              xmlns="http://www.w3.org/2000/svg" 
+                              width="20" 
+                              height="20" 
+                              viewBox="0 0 24 24" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="2" 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round"
+                              className="text-blue-500"
+                            >
+                              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => setFormData({ ...formData, welcomeAudioId: '' })}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {formData.pinProtected && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 p-4 bg-gray-50 rounded-md">
