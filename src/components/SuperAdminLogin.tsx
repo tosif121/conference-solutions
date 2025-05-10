@@ -47,12 +47,12 @@ export default function SuperAdminLogin() {
     // Simulate API call with small delay
     setTimeout(() => {
       if (username === 'admin' && password === 'password') {
-        Cookies.set('superadmin_token', 'your-token-value', {
+        Cookies.set('super_admin_token', 'your-token-value', {
           expires: 1, // 1 day
           path: '/',
         });
         toast.success('Login Successful');
-        router.push('super-admin/dashboard');
+        router.push('/super-admin/dashboard');
       } else {
         toast.error('Invalid credentials');
         setIsLoading(false);
