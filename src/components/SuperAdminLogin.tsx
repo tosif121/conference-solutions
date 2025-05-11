@@ -8,6 +8,7 @@ import Cookies from 'js-cookie';
 import { Eye, EyeOff, Lock, User, Shield, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
+import Link from 'next/link';
 
 export default function SuperAdminLogin() {
   const [username, setUsername] = useState('');
@@ -143,7 +144,13 @@ export default function SuperAdminLogin() {
                 )}
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex justify-between">
+                <Link
+                  href="/admin/login"
+                  className="text-sm text-primary hover:text-primary/80 hover:underline flex items-center gap-1"
+                >
+                  Go to Admin Panel
+                </Link>
                 <button
                   type="button"
                   className="text-sm text-primary hover:text-primary/80 hover:underline"
