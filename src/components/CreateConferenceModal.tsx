@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import toast from 'react-hot-toast';
-import { Calendar, Phone, User, Plus, Trash2, FileAudio, X, Upload, Check, Clock } from 'lucide-react';
+import { Calendar, Phone, User, Plus, Trash2, FileAudio, X } from 'lucide-react';
 
 // Define types
 interface Host {
@@ -48,6 +48,7 @@ export default function CreateConferenceModal() {
   const [open, setOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [formData, setFormData] = useState<FormData>({
     conferenceName: '',
@@ -556,6 +557,25 @@ export default function CreateConferenceModal() {
                       <span className="text-red-500">*</span>
                     </Label>
 
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      placeholder="Search audio files..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pr-10"
+                      aria-label="Search audio files"
+                    />
+                    {searchQuery && (
+                      <button
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Clear search"
+                      >
+                        <X className="h-4 w-4 text-gray-500" />
+                      </button>
+                    )}
+                  </div>
                     {/* Audio File Selector */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="col-span-2">

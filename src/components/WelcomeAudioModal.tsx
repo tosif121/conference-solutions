@@ -408,12 +408,12 @@ export default function WelcomeAudioModal() {
               <div className="space-y-2">
                 <Input
                   type="file"
-                  accept="audio/mp3,audio/wav,audio/mpeg"
+                  accept="audio/wav"
                   onChange={handleFileChange}
                   className="cursor-pointer"
                   aria-label="Upload audio file"
                 />
-                <p className="text-xs text-slate-500">Supported formats: MP3, WAV (max 5MB)</p>
+                <p className="text-xs text-slate-500">Supported formats: WAV (max 5MB)</p>
 
                 {uploadError && (
                   <p className="text-xs text-red-500" role="alert">
@@ -472,7 +472,7 @@ export default function WelcomeAudioModal() {
                 <li>Keep welcome messages brief (under 30 seconds)</li>
                 <li>Use clear language and avoid background noise</li>
                 <li>Consider recording in a professional studio for best quality</li>
-                <li>MP3 format with 128kbps or higher bitrate is recommended</li>
+                <li>WAV (16-bit PCM, 8kHz, Mono) formats are supported</li>
                 <li>Test your audio in a conference setting before actual use</li>
               </ul>
             </div>
