@@ -65,7 +65,6 @@ export default function ManageAdmins() {
     try {
       const res = await getAdminByUsername(username);
       if (res.status) {
-        // Assuming res.data contains the admin object directly
         setAdminByUsername(res.data);
         toast.success(res.message);
       } else {
@@ -154,7 +153,6 @@ export default function ManageAdmins() {
 
   return (
     <div className="container mx-auto space-y-8">
-      {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Manage Administrators</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -163,10 +161,8 @@ export default function ManageAdmins() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Create Admin Card */}
         <CreateAdmin fetchAdmins={fetchAdmins} adminByUsername={adminByUsername} />
 
-        {/* Admin List Card */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Administrator Accounts</CardTitle>

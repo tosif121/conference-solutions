@@ -51,10 +51,8 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
     assignedDids?: string;
   }>({});
 
-  // Fill form with existing admin data when adminByUsername changes
   useEffect(() => {
     if (adminByUsername) {
-      // Extract raw phone number (remove +91 prefix)
       const rawPhone = adminByUsername.admin.phone.startsWith('+91')
         ? adminByUsername.admin.phone.substring(3)
         : adminByUsername.admin.phone;
@@ -74,7 +72,6 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
     }
   }, [adminByUsername]);
 
-  // Set phone number with prefix when raw phone changes
   useEffect(() => {
     if (formData.rawPhone) {
       setFormData((prev) => ({
@@ -89,25 +86,21 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
     }
   }, [formData.rawPhone]);
 
-  // Handle form field changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target as { id: string; value: string };
 
     if (id === 'rawPhone') {
-      // Only allow numbers and limit to 10 digits for rawPhone
       const numbersOnly = value.replace(/\D/g, '');
       const limitedInput = numbersOnly.slice(0, 10);
 
       setFormData((prev) => ({ ...prev, rawPhone: limitedInput }));
 
-      // Clear error when user types
       if (errors.phone || errors.rawPhone) {
         setErrors((prev) => ({ ...prev, phone: '', rawPhone: '' }));
       }
     } else {
       setFormData((prev) => ({ ...prev, [id]: value }));
 
-      // Clear error when user types
       if (errors[id as keyof typeof errors]) {
         setErrors((prev) => ({ ...prev, [id]: '' }));
       }
@@ -284,7 +277,6 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
 
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Username Field */}
           <div className="space-y-2">
             <Label htmlFor="username" className="flex items-center gap-1.5">
               <AtSign className="h-3.5 w-3.5 text-slate-500" />
@@ -302,7 +294,6 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
             {errors.username && <p className="text-xs text-red-500 mt-1">{errors.username}</p>}
           </div>
 
-          {/* Name Field */}
           <div className="space-y-2">
             <Label htmlFor="name" className="flex items-center gap-1.5">
               <User className="h-3.5 w-3.5 text-slate-500" />
@@ -320,7 +311,6 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
             {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
           </div>
 
-          {/* Email Field */}
           <div className="space-y-2">
             <Label htmlFor="email" className="flex items-center gap-1.5">
               <Mail className="h-3.5 w-3.5 text-slate-500" />
@@ -339,7 +329,6 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
             {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
           </div>
 
-          {/* Password Field */}
           <div className="space-y-2">
             <Label htmlFor="password" className="flex items-center gap-1.5">
               <Lock className="h-3.5 w-3.5 text-slate-500" />
@@ -368,7 +357,6 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
             {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
           </div>
 
-          {/* Phone Field - modified to handle +91 prefix */}
           <div className="space-y-2">
             <Label htmlFor="rawPhone" className="flex items-center gap-1.5">
               <Phone className="h-3.5 w-3.5 text-slate-500" />
@@ -393,14 +381,12 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
             {errors.rawPhone && <p className="text-xs text-red-500 mt-1">{errors.rawPhone}</p>}
           </div>
 
-          {/* Assigned DIDs Field */}
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <Hash className="h-3.5 w-3.5 text-slate-500" />
               Assigned DIDs
             </Label>
 
-            {/* Selected DIDs display */}
             <div className="flex flex-wrap gap-2 mb-2">
               {formData.assignedDids.length > 0
                 ? formData.assignedDids.map((did) => (
@@ -420,7 +406,6 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
                 : ''}
             </div>
 
-            {/* DID selection interface */}
             <div className="relative">
               <div className="flex">
                 <Input
