@@ -1,45 +1,116 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { UserPlus, Mail, User, Loader2, Phone, Lock, AtSign, Plus, X, Hash } from 'lucide-react';
+import { UserPlus, Mail, User, Loader2, Phone, Lock, AtSign, Plus, X, Hash, EyeOff, Eye, UserCog } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { createAdmin } from '@/utils/services';
+import { createAdmin, updateAdmin } from '@/utils/services';
 
-function CreateAdmin() {
+interface Admin {
+  admin: any;
+  username: string;
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  assignedDids: string[];
+  isDeleted?: boolean;
+}
+
+interface CreateAdminProps {
+  fetchAdmins: () => void;
+  adminByUsername?: Admin | null;
+}
+
+function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
   const initialFormState = {
     username: '',
     name: '',
     email: '',
     password: '',
     phone: '',
+    rawPhone: '',
     assignedDids: [] as string[],
   };
 
   const [formData, setFormData] = useState<typeof initialFormState>(initialFormState);
   const [isLoading, setIsLoading] = useState(false);
   const [newDid, setNewDid] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [errors, setErrors] = useState<{
     username?: string;
     name?: string;
     email?: string;
     password?: string;
     phone?: string;
+    rawPhone?: string;
     assignedDids?: string;
   }>({});
-  const [showDidDropdown, setShowDidDropdown] = useState(false);
+
+  // Fill form with existing admin data when adminByUsername changes
+  useEffect(() => {
+    if (adminByUsername) {
+      // Extract raw phone number (remove +91 prefix)
+      const rawPhone = adminByUsername.admin.phone.startsWith('+91')
+        ? adminByUsername.admin.phone.substring(3)
+        : adminByUsername.admin.phone;
+
+      setFormData({
+        username: adminByUsername.admin.username || '',
+        name: adminByUsername.admin.name || '',
+        email: adminByUsername.admin.email || '',
+        password: adminByUsername.admin.password || '',
+        phone: adminByUsername.admin.phone || '',
+        rawPhone: rawPhone,
+        assignedDids: adminByUsername.admin.assignedDids || [],
+      });
+      setIsEditMode(true);
+    } else {
+      resetForm();
+    }
+  }, [adminByUsername]);
+
+  // Set phone number with prefix when raw phone changes
+  useEffect(() => {
+    if (formData.rawPhone) {
+      setFormData((prev) => ({
+        ...prev,
+        phone: `+91${prev.rawPhone}`,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        phone: '',
+      }));
+    }
+  }, [formData.rawPhone]);
 
   // Handle form field changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target as { id: keyof typeof errors; value: string };
-    setFormData((prev) => ({ ...prev, [id]: value }));
+    const { id, value } = e.target as { id: string; value: string };
 
-    // Clear error when user types
-    if (errors[id]) {
-      setErrors((prev) => ({ ...prev, [id]: '' }));
+    if (id === 'rawPhone') {
+      // Only allow numbers and limit to 10 digits for rawPhone
+      const numbersOnly = value.replace(/\D/g, '');
+      const limitedInput = numbersOnly.slice(0, 10);
+
+      setFormData((prev) => ({ ...prev, rawPhone: limitedInput }));
+
+      // Clear error when user types
+      if (errors.phone || errors.rawPhone) {
+        setErrors((prev) => ({ ...prev, phone: '', rawPhone: '' }));
+      }
+    } else {
+      setFormData((prev) => ({ ...prev, [id]: value }));
+
+      // Clear error when user types
+      if (errors[id as keyof typeof errors]) {
+        setErrors((prev) => ({ ...prev, [id]: '' }));
+      }
     }
   };
 
@@ -47,7 +118,7 @@ function CreateAdmin() {
     setFormData(initialFormState);
     setErrors({});
     setNewDid('');
-    setShowDidDropdown(false);
+    setIsEditMode(false);
   };
 
   const validateForm = () => {
@@ -72,18 +143,21 @@ function CreateAdmin() {
       newErrors.email = 'Invalid email format';
     }
 
-    // Password validation
-    if (!formData.password.trim()) {
+    // Password validation - only required for new users
+    if (!isEditMode && !formData.password.trim()) {
       newErrors.password = 'Password is required';
-    } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/.test(formData.password)) {
+    } else if (
+      formData.password.trim() &&
+      !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/.test(formData.password)
+    ) {
       newErrors.password = 'Password must have 6+ chars, uppercase, lowercase, number & special char';
     }
 
     // Phone validation
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    } else if (!/^\+\d{10,15}$/.test(formData.phone)) {
-      newErrors.phone = 'Phone must start with + and have 10-15 digits';
+    if (!formData.rawPhone.trim()) {
+      newErrors.rawPhone = 'Phone number is required';
+    } else if (formData.rawPhone.length !== 10) {
+      newErrors.rawPhone = 'Phone number must be exactly 10 digits';
     }
 
     // Check if at least one DID is assigned
@@ -117,7 +191,6 @@ function CreateAdmin() {
     }));
 
     setNewDid('');
-    setShowDidDropdown(false);
 
     // Clear DID error if it exists
     if (errors.assignedDids) {
@@ -129,46 +202,62 @@ function CreateAdmin() {
 
   // Remove DID from assigned list
   const removeDid = (didToRemove: string) => {
-      setFormData((prev) => ({
-        ...prev,
-        assignedDids: prev.assignedDids.filter((did) => did !== didToRemove),
-      }));
-      toast.success(`DID ${didToRemove} removed`);
-    };
+    setFormData((prev) => ({
+      ...prev,
+      assignedDids: prev.assignedDids.filter((did) => did !== didToRemove),
+    }));
+    toast.success(`DID ${didToRemove} removed`);
+  };
 
-  const handleCreateAdmin = async (e: { preventDefault: () => void; }) => {
+  const handleSubmit = async (e: { preventDefault: () => void }) => {
     if (e) e.preventDefault();
     if (!validateForm()) return;
 
     setIsLoading(true);
 
     try {
-      // Call the actual API endpoint with the correct formData values
-      const response = await createAdmin({
+      const adminData = {
         username: formData.username,
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        phone: formData.phone,
+        phone: formData.phone, // This includes the +91 prefix
         assignedDids: formData.assignedDids,
-      });
+      };
+
+      let response;
+
+      if (isEditMode) {
+        // Update existing admin - pass username as first parameter
+        response = await updateAdmin(formData.username, adminData);
+      } else {
+        // Create new admin - include username in the payload
+        response = await createAdmin({
+          ...adminData,
+          username: formData.username,
+        });
+      }
 
       if (response.status) {
         // Success
-        toast.success(response.message || 'Admin created successfully!');
-
-        // Reset form after successful creation
+        toast.success(response.message || `Admin ${isEditMode ? 'updated' : 'created'} successfully!`);
+        fetchAdmins();
+        // Reset form after successful operation
         resetForm();
       } else {
         // Error handling
-        toast.error(response.message || 'Failed to create admin.');
+        toast.error(response.message || `Failed to ${isEditMode ? 'update' : 'create'} admin.`);
       }
     } catch (error) {
-      console.error('Error creating admin:', error);
-      toast.error('Creation failed. Please try again.');
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} admin:`, error);
+      toast.error(`Operation failed. Please try again.`);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const cancelEdit = () => {
+    resetForm();
   };
 
   return (
@@ -176,17 +265,25 @@ function CreateAdmin() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-              <UserPlus className="h-5 w-5" />
+            <div
+              className={`p-1.5 rounded-md ${
+                isEditMode
+                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+              }`}
+            >
+              {isEditMode ? <UserCog className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />}
             </div>
-            <CardTitle className="text-lg">Create Admin User</CardTitle>
+            <CardTitle className="text-lg">{isEditMode ? 'Edit Admin User' : 'Create Admin User'}</CardTitle>
           </div>
         </div>
-        <CardDescription>Add a new administrator to the system</CardDescription>
+        <CardDescription>
+          {isEditMode ? 'Update existing administrator details' : 'Add a new administrator to the system'}
+        </CardDescription>
       </CardHeader>
 
       <CardContent>
-        <form onSubmit={handleCreateAdmin} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Username Field */}
           <div className="space-y-2">
             <Label htmlFor="username" className="flex items-center gap-1.5">
@@ -199,7 +296,7 @@ function CreateAdmin() {
               onChange={handleChange}
               placeholder="Enter Username"
               className={`h-10 ${errors.username ? 'border-red-500 focus:ring-red-500' : ''}`}
-              disabled={isLoading}
+              disabled={isLoading || isEditMode} // Disable username editing in edit mode
               required
             />
             {errors.username && <p className="text-xs text-red-500 mt-1">{errors.username}</p>}
@@ -248,36 +345,52 @@ function CreateAdmin() {
               <Lock className="h-3.5 w-3.5 text-slate-500" />
               Password
             </Label>
-            <Input
-              id="password"
-              type="password"
-              value={formData.password.replace(/\s+/g, '')}
-              onChange={handleChange}
-              placeholder="Enter Password"
-              className={`h-10 ${errors.password ? 'border-red-500 focus:ring-red-500' : ''}`}
-              disabled={isLoading}
-              required
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password.replace(/\s+/g, '')}
+                onChange={handleChange}
+                placeholder={isEditMode ? 'Enter new password or leave blank' : 'Enter Password'}
+                className={`h-10 pr-10 ${errors.password ? 'border-red-500 focus:ring-red-500' : ''}`}
+                disabled={isLoading}
+                required={!isEditMode}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 hover:text-slate-700"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
           </div>
 
-          {/* Phone Field */}
+          {/* Phone Field - modified to handle +91 prefix */}
           <div className="space-y-2">
-            <Label htmlFor="phone" className="flex items-center gap-1.5">
+            <Label htmlFor="rawPhone" className="flex items-center gap-1.5">
               <Phone className="h-3.5 w-3.5 text-slate-500" />
               Mobile Number
             </Label>
-            <Input
-              id="phone"
-              type="tel"
-              value={formData.phone}
-              onChange={handleChange}
-              placeholder="Enter Mobile Number with + prefix"
-              className={`h-10 ${errors.phone ? 'border-red-500 focus:ring-red-500' : ''}`}
-              disabled={isLoading}
-              required
-            />
-            {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+            <div className="flex">
+              <div className="flex items-center justify-center bg-slate-100 dark:bg-slate-800 px-3 border border-r-0 rounded-l-md border-slate-200 dark:border-slate-700">
+                +91
+              </div>
+              <Input
+                id="rawPhone"
+                type="text"
+                inputMode="numeric"
+                value={formData.rawPhone}
+                onChange={handleChange}
+                placeholder="Enter 10-digit mobile number"
+                className={`h-10 rounded-l-none ${errors.rawPhone ? 'border-red-500 focus:ring-red-500' : ''}`}
+                disabled={isLoading}
+                required
+              />
+            </div>
+            {errors.rawPhone && <p className="text-xs text-red-500 mt-1">{errors.rawPhone}</p>}
           </div>
 
           {/* Assigned DIDs Field */}
@@ -289,24 +402,22 @@ function CreateAdmin() {
 
             {/* Selected DIDs display */}
             <div className="flex flex-wrap gap-2 mb-2">
-              {formData.assignedDids.length > 0 ? (
-                formData.assignedDids.map((did) => (
-                  <Badge key={did} variant="secondary" className="py-1 flex items-center gap-1 group">
-                    {did}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-4 w-4 p-0 text-slate-400 hover:text-red-500"
-                      onClick={() => removeDid(did)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </Badge>
-                ))
-              ) : (
-                <p className="text-xs text-slate-500 italic">No DIDs assigned</p>
-              )}
+              {formData.assignedDids.length > 0
+                ? formData.assignedDids.map((did) => (
+                    <Badge key={did} variant="secondary" className="py-1 flex items-center gap-1 group">
+                      {did}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-4 w-4 p-0 text-slate-400 hover:text-red-500"
+                        onClick={() => removeDid(did)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  ))
+                : ''}
             </div>
 
             {/* DID selection interface */}
@@ -314,8 +425,12 @@ function CreateAdmin() {
               <div className="flex">
                 <Input
                   value={newDid}
-                  onChange={(e) => setNewDid(e.target.value)}
-                  onFocus={() => setShowDidDropdown(true)}
+                  onChange={(e) => {
+                    // Only allow digits and limit to 10 characters for DIDs
+                    const numbersOnly = e.target.value.replace(/\D/g, '');
+                    const limitedInput = numbersOnly.slice(0, 10);
+                    setNewDid(limitedInput);
+                  }}
                   placeholder="Enter 10-digit DID Number"
                   className="h-10 rounded-r-none"
                   disabled={isLoading}
@@ -340,9 +455,27 @@ function CreateAdmin() {
           <CardFooter className="flex justify-between pt-4 px-0">
             <div className="flex gap-2">
               <Button type="submit" disabled={isLoading} className="relative">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
-                {isLoading ? 'Creating...' : 'Create Admin'}
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : isEditMode ? (
+                  <UserCog className="h-4 w-4 mr-2" />
+                ) : (
+                  <UserPlus className="h-4 w-4 mr-2" />
+                )}
+                {isLoading
+                  ? isEditMode
+                    ? 'Updating...'
+                    : 'Creating...'
+                  : isEditMode
+                  ? 'Update Admin'
+                  : 'Create Admin'}
               </Button>
+
+              {isEditMode && (
+                <Button type="button" variant="outline" onClick={cancelEdit} disabled={isLoading}>
+                  Cancel
+                </Button>
+              )}
             </div>
           </CardFooter>
         </form>

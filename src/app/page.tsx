@@ -24,7 +24,7 @@ function DefaultPage() {
       } else {
         // No valid token found, redirect to login
         toast.error('Please login to access the dashboard');
-        router.push('/login');
+        router.push('admin/login');
       }
       setIsLoading(false);
     }, 100);
