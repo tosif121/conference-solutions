@@ -4,32 +4,87 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import ThemeToggle from './ThemeProvider';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Menu, X, LogOut, ChevronDown, User, Settings, Shield, LayoutDashboard, Users, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
 import Cookies from 'js-cookie';
-
-const navLinks = [
-  { name: 'Dashboard', href: '/super-admin/dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-  { name: 'Manage Admins', href: '/super-admin/users', icon: <Users className="w-4 h-4" /> },
-  { name: 'Assign DIDs', href: '/super-admin/dids', icon: <Phone className="w-4 h-4" /> },
-];
 
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [userRole, setUserRole] = useState<'super_admin' | 'admin' | null>(null);
+  
+  useEffect(() => {
+    // Check for role on component mount and cookie changes
+    const adminToken = Cookies.get('admin_token');
+    const superAdminToken = Cookies.get('super_admin_token');
+    
+    if (superAdminToken) {
+      setUserRole('super_admin');
+    } else if (adminToken) {
+      setUserRole('admin');
+    } else {
+      // If no valid token is found, redirect to login
+      router.push('/');
+    }
+  }, [router]);
+  
+  // Define navigation links based on user role
+  const getNavLinks = () => {
+    // Common links for all roles
+    const commonLinks = [
+      {
+        name: 'Dashboard',
+        href: userRole === 'admin' ? '/admin/dashboard' : '/super-admin/dashboard',
+        icon: <LayoutDashboard className="w-4 h-4" />,
+      }
+    ];
+    
+    // Super admin specific links
+    const superAdminLinks = [
+      {
+        name: 'Manage Admins',
+        href: '/super-admin/users',
+        icon: <Users className="w-4 h-4" />,
+      },
+      {
+        name: 'Assign DIDs',
+        href: '/super-admin/dids',
+        icon: <Phone className="w-4 h-4" />,
+      }
+    ];
+    
+    // Admin specific links (you can add more as needed)
+    const adminLinks: never[] = [
+      // Add admin specific links here
+    ];
+    
+    // Return appropriate links based on role
+    if (userRole === 'super_admin') {
+      return [...commonLinks, ...superAdminLinks];
+    } else if (userRole === 'admin') {
+      return [...commonLinks, ...adminLinks];
+    }
+    
+    // Default - return just common links if role hasn't been determined yet
+    return commonLinks;
+  };
 
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
   const toggleUserMenu = () => setUserMenuOpen(!userMenuOpen);
 
   const handleLogout = () => {
     Cookies.remove('super_admin_token', { path: '/' });
+    Cookies.remove('admin_token', { path: '/' });
     toast.success('Logged out!');
-    router.push('/super-admin/login');
+    router.push('/');
   };
+
+  // Get navigation links based on current role
+  const navLinks = getNavLinks();
 
   return (
     <header className="w-full bg-white dark:bg-slate-900 shadow-md border-b border-border sticky top-0 z-40">
@@ -40,7 +95,9 @@ export default function Header() {
             <Shield className="w-5 h-5 text-primary" />
           </div>
           <span className="text-lg font-bold text-slate-800 dark:text-white hidden sm:block">Call Conference</span>
-          <span className="text-sm font-medium text-primary/80 hidden sm:block">| Super Admin</span>
+          <span className="text-sm font-medium text-primary/80 hidden sm:block">
+            | {userRole === 'super_admin' ? 'Super Admin' : 'Admin'}
+          </span>
         </div>
 
         {/* Desktop Nav */}
@@ -74,26 +131,25 @@ export default function Header() {
               <div className="w-6 h-6 rounded-full bg-primary/15 text-primary flex items-center justify-center">
                 <User className="w-4 h-4" />
               </div>
-              <span className="hidden sm:inline">Admin</span>
+              <span className="hidden sm:inline">
+                {userRole === 'super_admin' ? 'Super Admin' : 'Admin'}
+              </span>
               <ChevronDown className={cn('w-4 h-4', userMenuOpen && 'rotate-180')} />
             </Button>
 
             {userMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-border rounded-md shadow-md z-50">
-                <div className="py-2 px-4 border-b border-border">
-                  <p className="text-xs text-muted-foreground">Signed in as</p>
-                  <p className="text-sm truncate">super.admin@example.com</p>
-                </div>
+               
                 <div className="py-1">
                   <Link
-                    href="/super-admin/profile"
+                    href={userRole === 'super_admin' ? '/super-admin/profile' : '/admin/profile'}
                     className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted"
                   >
                     <User className="w-4 h-4" />
                     Your Profile
                   </Link>
                   <Link
-                    href="/super-admin/settings"
+                    href={userRole === 'super_admin' ? '/super-admin/settings' : '/admin/settings'}
                     className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted"
                   >
                     <Settings className="w-4 h-4" />

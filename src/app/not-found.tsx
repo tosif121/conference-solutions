@@ -2,13 +2,13 @@
 import { useRouter } from 'next/navigation';
 import React, { useEffect } from 'react';
 
-function DefaultPage() {
+function NotFound() {
   const router = useRouter();
 
   useEffect(() => {
-    router.push('/super-admin/dashboard');
+    router.push('/');
   }, []);
 
   return <></>;
 }
-export default DefaultPage;
+export default NotFound;

@@ -9,6 +9,7 @@ import { Eye, EyeOff, Lock, User, Shield, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
+import { adminLogin } from '@/utils/services';
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -39,26 +40,34 @@ export default function AdminLogin() {
     return valid;
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: { preventDefault: () => void }) => {
     if (e) e.preventDefault();
     if (!validate()) return;
 
     setIsLoading(true);
 
-    // Simulate API call with small delay
-    setTimeout(() => {
-      if (username === 'admin' && password === 'password') {
-        Cookies.set('admin_token', 'your-token-value', {
+    try {
+      // Call the actual API endpoint
+      const response = await adminLogin({ username, password });
+
+      if (response.status) {
+        // Success - store token in cookie
+        Cookies.set('admin_token', response.data.token, {
           expires: 1, // 1 day
           path: '/',
         });
-        toast.success('Login Successful');
+        toast.success(response.message );
         router.push('/admin/dashboard');
       } else {
-        toast.error('Invalid credentials');
+        // Error handling
+        toast.error(response.message || 'Invalid credentials');
         setIsLoading(false);
       }
-    }, 800);
+    } catch (error) {
+      toast.error('Login failed. Please try again.');
+      console.error('Login error:', error);
+      setIsLoading(false);
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -94,7 +103,7 @@ export default function AdminLogin() {
                 <Input
                   id="username"
                   type="text"
-                  placeholder="admin"
+                  placeholder="Enter Username"
                   value={username.replace(/\s+/g, '')}
                   onChange={(e) => setUsername(e.target.value)}
                   className="h-12 px-4"
@@ -119,7 +128,7 @@ export default function AdminLogin() {
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
+                    placeholder="Enter Password"
                     value={password.replace(/\s+/g, '')}
                     onChange={(e) => setPassword(e.target.value)}
                     className="h-12 px-4 pr-10"
@@ -159,6 +168,7 @@ export default function AdminLogin() {
                   Forgot password?
                 </button>
               </div>
+
               <div className="pt-2">
                 <Button type="submit" className="w-full h-12 font-medium transition-all" disabled={isLoading}>
                   {isLoading ? (
