@@ -65,7 +65,7 @@ export default function ManageAdmins() {
     try {
       const res = await getAdminByUsername(username);
       if (res.status) {
-        setAdminByUsername(res.data);
+        setAdminByUsername(res.data.admin);
         toast.success(res.message);
       } else {
         toast.error(res.message || 'Failed to fetch administrator details');
