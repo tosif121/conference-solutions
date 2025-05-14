@@ -164,7 +164,7 @@ export default function ManageAdmins() {
         <CreateAdmin fetchAdmins={fetchAdmins} adminByUsername={adminByUsername} />
 
         <Card className="lg:col-span-2">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardHeader className="pb-0 flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Administrator Accounts</CardTitle>
           </CardHeader>
 

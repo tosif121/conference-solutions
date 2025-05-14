@@ -7,12 +7,11 @@ export const adminLogin = (params) => fetcher('POST', apiUrl(process.env.ADMIN_L
 
 // Conference Call Endpoints
 export const getLiveConfCalls = (params) => fetcher('GET', apiUrl(process.env.LIVE_CONF_CALLS), params);
-export const getConfCallDetail = (id) => fetcher('GET', apiUrl(`${process.env.CONF_CALL_DETAIL}/${id}`), {});
 
 // Conference Management
 export const createConference = (params) => fetcher('POST', apiUrl(process.env.CREATE_CONFERENCE), params);
 export const getConferenceById = (id) => fetcher('GET', apiUrl(`${process.env.GET_CONFERENCE_BY_ID}/${id}`), {});
-export const getAllConferences = (params) => fetcher('GET', apiUrl(process.env.GET_CONFERENCE_BY_ID), params);
+export const getAllConferences = (params) => fetcher('POST', apiUrl(process.env.CONF_CALL_DETAIL), params);
 export const updateConference = (id, params) => fetcher('PUT', apiUrl(`${process.env.UPDATE_CONFERENCE_BY_ID}/${id}`), params);
 export const deleteConference = (id) => fetcher('DELETE', apiUrl(`${process.env.DELETE_CONFERENCE_BY_ID}/${id}`), {});
 

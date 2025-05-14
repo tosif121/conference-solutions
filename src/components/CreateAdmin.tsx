@@ -147,9 +147,9 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
 
     // Phone validation
     if (!formData.rawPhone.trim()) {
-      newErrors.rawPhone = 'Phone number is required';
+      newErrors.rawPhone = 'Mobile number is required';
     } else if (formData.rawPhone.length !== 10) {
-      newErrors.rawPhone = 'Phone number must be exactly 10 digits';
+      newErrors.rawPhone = 'Mobile number must be exactly 10 digits';
     }
 
     // Check if at least one DID is assigned

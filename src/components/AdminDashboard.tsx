@@ -1,71 +1,287 @@
 'use client';
 
-import { useState } from 'react';
+import { JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { 
-  Mic, 
-  PhoneCall, 
-  Folder, 
-  Activity, 
-  MoreVertical, 
-  Calendar, 
-  Users, 
-  Clock, 
-  Plus, 
-  RefreshCw, 
-  Search, 
-  Filter, 
-  Download,
-  BarChart4
-} from 'lucide-react';
+import { Mic, PhoneCall, Folder, Activity, Edit } from 'lucide-react';
 import CreateConferenceModal from './CreateConferenceModal';
 import WelcomeAudioModal from './WelcomeAudioModal';
+import DataTable from './DataTable';
+import { getAllConferences } from '@/utils/services';
+import toast from 'react-hot-toast';
+import moment from 'moment';
+import DeleteConfirmationModal from './DeleteConfirmationModal';
+import { Button } from './ui/button';
+import DateRangePicker from './DateRangePicker';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [isLoading, setIsLoading] = useState(true);
+  const [conferencesData, setConferencesData] = useState([]);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  // Conference data 
-  const recentConferences = [
-    { id: 1, name: 'Team Standup Call', date: 'Today, 10:30 AM', status: 'Completed', participants: 12, duration: '45 min' },
-    { id: 2, name: 'Sales Review Meeting', date: 'Yesterday, 4:00 PM', status: 'Completed', participants: 8, duration: '1h 15min' },
-    { id: 3, name: 'Product Demo', date: 'Yesterday, 2:30 PM', status: 'Completed', participants: 15, duration: '30 min' },
-    { id: 4, name: 'Client Demo', date: '2 Days Ago, 1:15 PM', status: 'Completed', participants: 5, duration: '45 min' },
-    { id: 5, name: 'Board Meeting', date: '3 Days Ago, 3:00 PM', status: 'Completed', participants: 7, duration: '2h' },
-  ];
+  // Set initial date range only once on component mount
+  useEffect(() => {
+    const today = moment().endOf('day');
+    const sevenDaysAgo = moment().subtract(7, 'days').startOf('day');
 
-  // Upcoming conferences
-  const upcomingConferences = [
-    { id: 6, name: 'Marketing Strategy', date: 'Tomorrow, 11:00 AM', status: 'Scheduled', participants: 6 },
-    { id: 7, name: 'Project Kickoff', date: 'May 13, 2:00 PM', status: 'Scheduled', participants: 12 },
-    { id: 8, name: 'Quarterly Review', date: 'May 15, 9:00 AM', status: 'Scheduled', participants: 18 },
-  ];
+    setStartDate(sevenDaysAgo.format('YYYY-MM-DD'));
+    setEndDate(today.format('YYYY-MM-DD'));
 
-  // Active conferences
-  const activeConferences = [
-    { id: 9, name: 'Customer Support', startTime: '09:30 AM', duration: '45 min', participants: 4, progress: 65 },
-    { id: 10, name: 'Engineering Sync', startTime: '10:15 AM', duration: '30 min', participants: 8, progress: 40 },
-    { id: 11, name: 'Sales Call', startTime: '10:00 AM', duration: '1h', participants: 3, progress: 25 },
-  ];
+    // Initial data fetch will happen in the next useEffect when startDate and endDate are set
+  }, []);
+
+  // Fetch conferences only when both dates are available and either date changes
+  useEffect(() => {
+    if (startDate && endDate) {
+      fetchConferences();
+    }
+  }, [startDate, endDate]);
+
+  const fetchConferences = async () => {
+    setIsLoading(true);
+
+    const payload = {
+      startDate: startDate,
+      endDate: endDate,
+    };
+
+    try {
+      const res = await getAllConferences(payload);
+      if (res?.status) {
+        console.log('Conferences data:', res);
+        setConferencesData(res.data.liveConfCalls);
+      } else {
+        toast.error(res.message || 'Failed to fetch conferences');
+      }
+    } catch (err) {
+      console.error('Error fetching conferences:', err);
+      toast.error('Error fetching conferences');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle date picker changes - combine all state updates to prevent multiple renders
+  const handleDateChange = (update: [Date | null, Date | null]) => {
+    if (Array.isArray(update) && update.length === 2 && update[0] && update[1]) {
+      // Update date range state
+
+      // Format dates for API calls
+      const formattedStartDate = moment(update[0]).format('YYYY-MM-DD');
+      const formattedEndDate = moment(update[1]).format('YYYY-MM-DD');
+
+      // Update date strings in a single batch to minimize renders
+      setStartDate(formattedStartDate);
+      setEndDate(formattedEndDate);
+
+      // The fetchConferences will be triggered by the useEffect that depends on startDate and endDate
+    }
+  };
+
+  const columns = useMemo(
+    () => [
+      {
+        id: 'hostNumber',
+        accessorKey: 'hostNumber',
+        header: () => 'Host Number',
+        cell: ({ row }: { row: { original: { hostNumber: string } } }) => <span>{row.original.hostNumber}</span>,
+      },
+      {
+        id: 'adminUser',
+        accessorKey: 'adminUser',
+        header: () => 'Admin User',
+        cell: ({ row }: { row: { original: { adminUser: string } } }) => <span>{row.original.adminUser}</span>,
+      },
+      {
+        id: 'dialedNumber',
+        accessorKey: 'dialedNumber',
+        header: () => 'Dialed Number',
+        cell: ({ row }: { row: { original: { dialedNumber: string } } }) => <span>{row.original.dialedNumber}</span>,
+      },
+      {
+        id: 'numberOfGuests',
+        accessorKey: 'numberOfGuests',
+        header: () => 'Guests',
+        cell: ({ row }: { row: { original: { numberOfGuests: number } } }) => (
+          <span>{row.original.numberOfGuests}</span>
+        ),
+      },
+      {
+        id: 'status',
+        accessorKey: 'status',
+        header: () => 'Status',
+        cell: ({ row }: { row: { original: { status: string } } }) => <span>{row.original.status}</span>,
+      },
+      {
+        id: 'conference',
+        accessorKey: 'conference',
+        header: () => 'Conference',
+        cell: ({ row }: { row: { original: { conference: string } } }) => <span>{row.original.conference}</span>,
+      },
+      {
+        id: 'type',
+        accessorKey: 'type',
+        header: () => 'Type',
+        cell: ({ row }: { row: { original: { type: string } } }) => <span>{row.original.type}</span>,
+      },
+      // {
+      //   id: 'guestChannels',
+      //   accessorKey: 'guestChannels',
+      //   header: () => 'Guest Channels',
+      //   disableSorting: true,
+      //   cell: ({ row }: { row: { original: any } }) => (
+      //     <div className="flex flex-col gap-1 max-w-xs">
+      //       {row.original.guestChannels && row.original.guestChannels.length > 0 ? (
+      //         row.original.guestChannels.map(
+      //           (
+      //             guest: {
+      //               name:
+      //                 | string
+      //                 | number
+      //                 | bigint
+      //                 | boolean
+      //                 | ReactElement<unknown, string | JSXElementConstructor<any>>
+      //                 | Iterable<ReactNode>
+      //                 | ReactPortal
+      //                 | Promise<
+      //                     | string
+      //                     | number
+      //                     | bigint
+      //                     | boolean
+      //                     | ReactPortal
+      //                     | ReactElement<unknown, string | JSXElementConstructor<any>>
+      //                     | Iterable<ReactNode>
+      //                     | null
+      //                     | undefined
+      //                   >
+      //                 | null
+      //                 | undefined;
+      //               phoneNumber:
+      //                 | string
+      //                 | number
+      //                 | bigint
+      //                 | boolean
+      //                 | ReactElement<unknown, string | JSXElementConstructor<any>>
+      //                 | Iterable<ReactNode>
+      //                 | ReactPortal
+      //                 | Promise<
+      //                     | string
+      //                     | number
+      //                     | bigint
+      //                     | boolean
+      //                     | ReactPortal
+      //                     | ReactElement<unknown, string | JSXElementConstructor<any>>
+      //                     | Iterable<ReactNode>
+      //                     | null
+      //                     | undefined
+      //                   >
+      //                 | null
+      //                 | undefined;
+      //               status:
+      //                 | string
+      //                 | number
+      //                 | bigint
+      //                 | boolean
+      //                 | ReactElement<unknown, string | JSXElementConstructor<any>>
+      //                 | Iterable<ReactNode>
+      //                 | ReactPortal
+      //                 | Promise<
+      //                     | string
+      //                     | number
+      //                     | bigint
+      //                     | boolean
+      //                     | ReactPortal
+      //                     | ReactElement<unknown, string | JSXElementConstructor<any>>
+      //                     | Iterable<ReactNode>
+      //                     | null
+      //                     | undefined
+      //                   >
+      //                 | null
+      //                 | undefined;
+      //             },
+      //             idx: Key | null | undefined
+      //           ) => (
+      //             <div key={idx} className="flex gap-2 items-center text-xs border-b last:border-b-0 py-1">
+      //               <span className="font-semibold">{guest.name}</span>
+      //               <span>{guest.phoneNumber}</span>
+      //               <span className="italic text-slate-500">{guest.status}</span>
+      //             </div>
+      //           )
+      //         )
+      //       ) : (
+      //         <span className="text-slate-400 text-xs">No Guests</span>
+      //       )}
+      //     </div>
+      //   ),
+      // },
+      {
+        id: 'answerTime',
+        accessorKey: 'answerTime',
+        header: () => 'Answer Time',
+        cell: ({ row }: { row: { original: { answerTime: string | null; hangupTime: string | null } } }) => (
+          <span>{row.original.answerTime ? moment(row.original.answerTime).format('DD-MMM-YYYY h:mm A') : '-'}</span>
+        ),
+      },
+      {
+        id: 'hangupTime',
+        accessorKey: 'hangupTime',
+        header: () => 'Hangup Time',
+        cell: ({ row }: { row: { original: { answerTime: string | null; hangupTime: string | null } } }) => (
+          <span>{row.original.hangupTime ? moment(row.original.hangupTime).format('DD-MMM-YYYY h:mm A') : '-'}</span>
+        ),
+      },
+      {
+        id: 'duration',
+        header: () => 'Duration',
+        cell: ({ row }: { row: { original: { answerTime: string | null; hangupTime: string | null } } }) => {
+          if (!row.original.answerTime || !row.original.hangupTime) return '-';
+
+          const start = moment(row.original.answerTime);
+          const end = moment(row.original.hangupTime);
+          const duration = moment.duration(end.diff(start));
+
+          // Format duration as HH:MM:SS
+          return `${Math.floor(duration.asHours())}:${duration.minutes().toString().padStart(2, '0')}:${duration
+            .seconds()
+            .toString()
+            .padStart(2, '0')}`;
+        },
+      },
+      {
+        id: 'actions',
+        header: () => 'Actions',
+        disableSorting: true,
+        cell: ({ row }: { row: { original: { username: string } } }) => (
+          <div className="flex gap-x-4">
+            <DeleteConfirmationModal
+              onDelete={() => handleDelete(row.original.username)}
+              itemName={`administrator "${row.original.username}"`}
+            />
+
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              size="sm"
+              title="Edit"
+              onClick={() => handleEdit(row.original.username)}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
 
   return (
     <div className="container mx-auto py-6 space-y-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Admin Dashboard</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your conferences and monitor system activity</p>
         </div>
-        
+
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button variant="outline" size="sm" className="flex items-center gap-1">
-            <RefreshCw className="w-4 h-4" />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
           <CreateConferenceModal />
           <WelcomeAudioModal />
         </div>
@@ -97,7 +313,12 @@ export default function AdminDashboard() {
               <p className="text-sm text-muted-foreground">Live Conferences</p>
               <div className="flex items-baseline gap-2">
                 <h2 className="text-2xl font-bold">3</h2>
-                <Badge variant="outline" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Live</Badge>
+                <Badge
+                  variant="outline"
+                  className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                >
+                  Live
+                </Badge>
               </div>
             </div>
           </CardContent>
@@ -134,295 +355,33 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Main content tabs */}
-      <Tabs defaultValue="overview" className="space-y-4" onValueChange={setActiveTab}>
-        <div className="flex justify-between items-center">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="active">Active Calls</TabsTrigger>
-            <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-            <TabsTrigger value="recordings">Recordings</TabsTrigger>
-          </TabsList>
-          
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="flex items-center gap-1">
-              <Search className="w-4 h-4" />
-              <span className="hidden sm:inline">Search</span>
-            </Button>
-            <Button variant="outline" size="sm" className="flex items-center gap-1">
-              <Filter className="w-4 h-4" />
-              <span className="hidden sm:inline">Filter</span>
-            </Button>
-          </div>
-        </div>
+      <Card className="lg:col-span-2">
+        <CardHeader className="pb-0 flex flex-row items-center justify-between">
+          <CardTitle className="text-lg">Conferences Management</CardTitle>
+          <DateRangePicker
+            onDateChange={handleDateChange}
+            initialStartDate={startDate || undefined}
+            initialEndDate={endDate || undefined}
+          />
+        </CardHeader>
 
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
-          {/* Active conferences */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-medium flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-green-500" />
-                  Live Conferences
-                </CardTitle>
-                <Badge className="bg-green-500">3 Active</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {activeConferences.map((conference) => (
-                  <div key={conference.id} className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="w-3 h-3 bg-green-500 rounded-full absolute -top-1 -right-1 animate-pulse"></div>
-                          <Avatar className="w-10 h-10 border-2 border-green-200">
-                            <AvatarFallback className="bg-green-100 text-green-800">{conference.name.slice(0, 2)}</AvatarFallback>
-                          </Avatar>
-                        </div>
-                        <div>
-                          <h3 className="font-medium">{conference.name}</h3>
-                          <div className="flex items-center text-xs text-muted-foreground gap-3">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> {conference.startTime}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" /> {conference.participants} participants
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 mt-3 sm:mt-0">
-                        <Button size="sm" variant="secondary">Join</Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>View Details</DropdownMenuItem>
-                            <DropdownMenuItem>End Call</DropdownMenuItem>
-                            <DropdownMenuItem>Add Participant</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-muted-foreground mt-3">
-                      <div className="flex-1">
-                        <div className="flex justify-between mb-1">
-                          <span>Progress</span>
-                          <span>{conference.progress}%</span>
-                        </div>
-                        <Progress value={conference.progress} className="h-2" />
-                      </div>
-                      <Badge variant="outline" className="w-fit">
-                        {conference.duration}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recent conferences */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-medium flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-primary" />
-                  Recent Conferences
-                </CardTitle>
-                <Button variant="ghost" size="sm" className="flex items-center gap-1">
-                  <Download className="w-4 h-4" />
-                  <span>Export</span>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-900">
-                    <tr>
-                      <th className="py-3 px-4 text-left font-medium">Conference</th>
-                      <th className="py-3 px-4 text-left font-medium hidden sm:table-cell">Date</th>
-                      <th className="py-3 px-4 text-left font-medium hidden md:table-cell">Participants</th>
-                      <th className="py-3 px-4 text-left font-medium hidden md:table-cell">Duration</th>
-                      <th className="py-3 px-4 text-left font-medium">Status</th>
-                      <th className="py-3 px-4 text-right font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentConferences.map((conference, index) => (
-                      <tr key={conference.id} className={index !== recentConferences.length - 1 ? "border-b" : ""}>
-                        <td className="py-3 px-4">{conference.name}</td>
-                        <td className="py-3 px-4 hidden sm:table-cell text-muted-foreground">{conference.date}</td>
-                        <td className="py-3 px-4 hidden md:table-cell text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Users className="w-4 h-4" />
-                            <span>{conference.participants}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 hidden md:table-cell text-muted-foreground">{conference.duration}</td>
-                        <td className="py-3 px-4">
-                          <Badge variant="outline" className="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200">
-                            {conference.status}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>View Details</DropdownMenuItem>
-                              <DropdownMenuItem>Download Recording</DropdownMenuItem>
-                              <DropdownMenuItem>View Transcript</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Upcoming conferences */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-medium flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-blue-500" />
-                  Upcoming Conferences
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {upcomingConferences.map((conference) => (
-                    <div key={conference.id} className="flex items-center justify-between p-3 rounded-lg border">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-9 h-9">
-                          <AvatarFallback className="bg-blue-100 text-blue-800">{conference.name.slice(0, 2)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <h3 className="font-medium">{conference.name}</h3>
-                          <div className="flex items-center text-xs text-muted-foreground gap-2">
-                            <span>{conference.date}</span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" /> {conference.participants}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <Button size="sm" variant="outline">Prepare</Button>
-                    </div>
-                  ))}
-                </div>
-                <Button variant="ghost" className="w-full mt-4">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  View Full Schedule
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-medium flex items-center gap-2">
-                  <BarChart4 className="w-5 h-5 text-violet-500" />
-                  System Health
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between mb-1 text-sm">
-                      <span>CPU Usage</span>
-                      <span>28%</span>
-                    </div>
-                    <Progress value={28} className="h-2" />
-                  </div>
-                  <div>
-                    <div className="flex justify-between mb-1 text-sm">
-                      <span>Memory Usage</span>
-                      <span>45%</span>
-                    </div>
-                    <Progress value={45} className="h-2" />
-                  </div>
-                  <div>
-                    <div className="flex justify-between mb-1 text-sm">
-                      <span>Storage</span>
-                      <span>62%</span>
-                    </div>
-                    <Progress value={62} className="h-2" />
-                  </div>
-                  <div>
-                    <div className="flex justify-between mb-1 text-sm">
-                      <span>Network</span>
-                      <span>15%</span>
-                    </div>
-                    <Progress value={15} className="h-2" />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                  <div className="text-sm">
-                    <p className="font-medium">System Status</p>
-                    <p className="text-green-500 flex items-center gap-1">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      All Systems Operational
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm">View Details</Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Active Calls Tab */}
-        <TabsContent value="active">
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Conference Calls</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Detailed information about currently active conference calls would appear here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Scheduled Tab */}
-        <TabsContent value="scheduled">
-          <Card>
-            <CardHeader>
-              <CardTitle>Scheduled Conferences</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Calendar view and list of upcoming scheduled conferences would appear here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Recordings Tab */}
-        <TabsContent value="recordings">
-          <Card>
-            <CardHeader>
-              <CardTitle>Conference Recordings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Library of all recorded conference calls and their transcripts would appear here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        <CardContent>
+          {isLoading ? (
+            <div className="py-8 text-center text-slate-500 dark:text-slate-400">Loading conferences...</div>
+          ) : conferencesData?.length > 0 ? (
+            <DataTable data={conferencesData} columns={columns} searchPlaceholder="Search Conferences..." />
+          ) : (
+            <div className="py-8 text-center text-slate-500 dark:text-slate-400">No conferences found.</div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
+}
+function handleDelete(username: any): void {
+  throw new Error('Function not implemented.');
+}
+
+function handleEdit(username: any): void {
+  throw new Error('Function not implemented.');
 }

@@ -43,7 +43,7 @@ const DataTable = <T,>({
 
   // Ensure all columns have an ID
   const processedColumns = React.useMemo(
-    () => 
+    () =>
       columns.map((column) => ({
         ...column,
         // Ensure every column has an id
@@ -108,7 +108,7 @@ const DataTable = <T,>({
         </Select>
       </div>
 
-    {/* Table */}
+      {/* Table */}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -132,7 +132,7 @@ const DataTable = <T,>({
                         )}
                       </Button>
                     ) : (
-                      <div className="px-4 py-2">{flexRender(header.column.columnDef.header, header.getContext())}</div>
+                      <div className="text-left">{flexRender(header.column.columnDef.header, header.getContext())}</div>
                     )}
                   </TableHead>
                 ))}
@@ -144,7 +144,9 @@ const DataTable = <T,>({
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    <TableCell key={cell.id} className="text-left">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))
@@ -176,15 +178,15 @@ const DataTable = <T,>({
               // Show pages around the current page
               let startPage = Math.max(0, pageIndex - 2);
               let endPage = Math.min(pageCount - 1, startPage + 4);
-              
+
               // Adjust if we're near the end
               if (endPage - startPage < 4) {
                 startPage = Math.max(0, endPage - 4);
               }
-              
+
               const currentPageIndex = startPage + i;
               if (currentPageIndex >= pageCount) return null;
-              
+
               return (
                 <Button
                   key={currentPageIndex}

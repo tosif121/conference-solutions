@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import toast from 'react-hot-toast';
-import { Calendar, Phone, User, Plus, Trash2, FileAudio, X } from 'lucide-react';
+import { Calendar, Plus, Trash2, FileAudio, X } from 'lucide-react';
+import { createConference } from '@/utils/services';
 
 // Define types
 interface Host {
@@ -30,6 +31,7 @@ interface FormData {
   welcomeAudioId: string;
   playWelcomeAudio: boolean;
   retryOnNoAnswer: boolean;
+  guestMute: boolean;
   announcementEnabled: boolean;
   pinProtected: boolean;
   hostPin: string;
@@ -58,6 +60,7 @@ export default function CreateConferenceModal() {
     welcomeAudioId: '',
     playWelcomeAudio: false,
     retryOnNoAnswer: false,
+    guestMute: false,
     announcementEnabled: false,
     pinProtected: false,
     hostPin: '',
@@ -77,9 +80,11 @@ export default function CreateConferenceModal() {
     if (!formData.host.phoneNumber.trim()) newErrors.hostPhone = 'Host phone is required';
 
     // Phone validation (simple regex for demonstration)
-    const phoneRegex = /^\+?[0-9]{10,15}$/;
-    if (formData.host.phoneNumber && !phoneRegex.test(formData.host.phoneNumber.replace(/\s+/g, ''))) {
-      newErrors.hostPhone = 'Please enter a valid phone number';
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!formData.host.phoneNumber.trim()) {
+      newErrors.hostPhone = 'Host phone is required';
+    } else if (!phoneRegex.test(formData.host.phoneNumber)) {
+      newErrors.hostPhone = 'Please enter a valid 10-digit mobile number';
     }
 
     // Guest validation
@@ -93,8 +98,8 @@ export default function CreateConferenceModal() {
       }
 
       // Phone validation for guests
-      if (guest.phoneNumber && !phoneRegex.test(guest.phoneNumber.replace(/\s+/g, ''))) {
-        newErrors[`guestPhone_${index}`] = 'Please enter a valid phone number';
+      if (guest.phoneNumber && !phoneRegex.test(guest.phoneNumber)) {
+        newErrors[`guestPhone_${index}`] = 'Please enter a valid 10-digit mobile number';
       }
     });
 
@@ -138,22 +143,31 @@ export default function CreateConferenceModal() {
 
   const handleSubmit = async (): Promise<void> => {
     if (!validateForm()) {
-      toast.error('Please fix the errors in the form');
       return;
     }
 
     setIsSubmitting(true);
+    const formatPhone = (num: string) => (num ? `+91${num}` : '');
 
     try {
       // Simulate API call
       const payload = {
         conferenceName: formData.conferenceName,
         description: formData.description,
-        host: formData.host,
-        guests: formData.guests.filter((guest) => guest.name || guest.phoneNumber),
+        host: {
+          ...formData.host,
+          phoneNumber: formatPhone(formData.host.phoneNumber),
+        },
+        guests: formData.guests
+          .filter((guest) => guest.name || guest.phoneNumber)
+          .map((guest) => ({
+            ...guest,
+            phoneNumber: formatPhone(guest.phoneNumber),
+          })),
         welcomeAudioId: formData.playWelcomeAudio ? formData.welcomeAudioId : undefined,
         playWelcomeAudio: formData.playWelcomeAudio,
         retryOnNoAnswer: formData.retryOnNoAnswer,
+        guestMute: formData.guestMute,
         announcementEnabled: formData.announcementEnabled,
         pinProtected: formData.pinProtected,
         hostPin: formData.pinProtected ? formData.hostPin : undefined,
@@ -161,14 +175,13 @@ export default function CreateConferenceModal() {
         scheduledAt: formData.isScheduled ? new Date(formData.scheduledAt).getTime() : undefined,
       };
 
-      console.log('Sending to API:', payload);
+      const response = await createConference(payload);
 
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      toast.success('Conference created successfully!');
-      setOpen(false);
-      resetForm();
+      if (response.status) {
+        toast.success(response.message);
+        setOpen(false);
+        resetForm();
+      }
     } catch (error) {
       toast.error('Failed to create conference. Please try again.');
       console.error(error);
@@ -186,6 +199,7 @@ export default function CreateConferenceModal() {
       welcomeAudioId: '',
       playWelcomeAudio: false,
       retryOnNoAnswer: false,
+      guestMute: false,
       announcementEnabled: false,
       pinProtected: false,
       hostPin: '',
@@ -225,6 +239,9 @@ export default function CreateConferenceModal() {
 
   // Update host fields
   const updateHostField = (field: keyof Host, value: string): void => {
+    if (field === 'phoneNumber') {
+      value = value.replace(/\D/g, '').slice(0, 10);
+    }
     setFormData({
       ...formData,
       host: {
@@ -237,6 +254,9 @@ export default function CreateConferenceModal() {
   // Update guest fields
   const updateGuestField = (index: number, field: keyof Guest, value: string | number): void => {
     const newGuests = [...formData.guests];
+    if (field === 'phoneNumber' && typeof value === 'string') {
+      value = value.replace(/\D/g, '').slice(0, 10);
+    }
     newGuests[index] = {
       ...newGuests[index],
       [field]: value,
@@ -289,7 +309,7 @@ export default function CreateConferenceModal() {
                 </Label>
                 <Input
                   id="conferenceName"
-                  placeholder="Enter Conference name"
+                  placeholder="Enter Conference Name"
                   value={formData.conferenceName}
                   onChange={(e) => setFormData({ ...formData, conferenceName: e.target.value })}
                   className={errors.conferenceName ? 'border-red-500' : ''}
@@ -320,33 +340,34 @@ export default function CreateConferenceModal() {
                       <span>Host Name</span>
                       <span className="text-red-500">*</span>
                     </Label>
-                    <div className="relative">
-                      <Input
-                        id="hostName"
-                        value={formData.host.name}
-                        onChange={(e) => updateHostField('name', e.target.value)}
-                        placeholder="Enter host name"
-                        className={`pl-10 ${errors.hostName ? 'border-red-500' : ''}`}
-                      />
-                      <User className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
-                    </div>
+                    <Input
+                      id="hostName"
+                      value={formData.host.name}
+                      onChange={(e) => updateHostField('name', e.target.value)}
+                      placeholder="Enter Host Name"
+                      className={`${errors.hostName ? 'border-red-500' : ''}`}
+                    />
                     {errors.hostName && <p className="text-red-500 text-sm">{errors.hostName}</p>}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="hostPhone" className="flex items-center space-x-1">
-                      <span>Host Phone</span>
+                      <span>Host Mobile</span>
                       <span className="text-red-500">*</span>
                     </Label>
-                    <div className="relative">
+                    <div className="flex">
+                      <div className="flex items-center justify-center bg-slate-100 dark:bg-slate-800 px-3 border border-r-0 rounded-l-md border-slate-200 dark:border-slate-700">
+                        +91
+                      </div>
                       <Input
                         id="hostPhone"
+                        type="text"
+                        inputMode="numeric"
                         value={formData.host.phoneNumber}
                         onChange={(e) => updateHostField('phoneNumber', e.target.value)}
-                        placeholder="+1234567890"
-                        className={`pl-10 ${errors.hostPhone ? 'border-red-500' : ''}`}
+                        placeholder="Enter Mobile No."
+                        className={`rounded-l-none ${errors.hostPhone ? 'border-red-500' : ''}`}
                       />
-                      <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
                     </div>
                     {errors.hostPhone && <p className="text-red-500 text-sm">{errors.hostPhone}</p>}
                   </div>
@@ -378,7 +399,7 @@ export default function CreateConferenceModal() {
                       variant="ghost"
                       size="sm"
                       onClick={() => removeGuest(index)}
-                      className="absolute top-2 right-2 p-1 h-8 w-8"
+                      className="absolute top-1 right-2 p-1 h-8 w-8"
                     >
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
@@ -392,10 +413,9 @@ export default function CreateConferenceModal() {
                           id={`guestName-${index}`}
                           value={guest.name}
                           onChange={(e) => updateGuestField(index, 'name', e.target.value)}
-                          placeholder="Enter guest name"
-                          className={`pl-10 ${errors[`guestName_${index}`] ? 'border-red-500' : ''}`}
+                          placeholder="Enter Guest Name"
+                          className={`${errors[`guestName_${index}`] ? 'border-red-500' : ''}`}
                         />
-                        <User className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
                       </div>
                       {errors[`guestName_${index}`] && (
                         <p className="text-red-500 text-sm">{errors[`guestName_${index}`]}</p>
@@ -403,16 +423,18 @@ export default function CreateConferenceModal() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor={`guestPhone-${index}`}>Guest Phone</Label>
-                      <div className="relative">
+                      <Label htmlFor={`guestPhone-${index}`}>Guest Mobile</Label>
+                      <div className="flex">
+                        <div className="flex items-center justify-center bg-slate-100 dark:bg-slate-800 px-3 border border-r-0 rounded-l-md border-slate-200 dark:border-slate-700">
+                          +91
+                        </div>
                         <Input
                           id={`guestPhone-${index}`}
                           value={guest.phoneNumber}
                           onChange={(e) => updateGuestField(index, 'phoneNumber', e.target.value)}
-                          placeholder="+1234567890"
-                          className={`pl-10 ${errors[`guestPhone_${index}`] ? 'border-red-500' : ''}`}
+                          placeholder="Enter Mobile No."
+                          className={`rounded-l-none ${errors[`guestPhone_${index}`] ? 'border-red-500' : ''}`}
                         />
-                        <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
                       </div>
                       {errors[`guestPhone_${index}`] && (
                         <p className="text-red-500 text-sm">{errors[`guestPhone_${index}`]}</p>
@@ -527,6 +549,15 @@ export default function CreateConferenceModal() {
                     />
                     <Label htmlFor="pinProtected">PIN Protected</Label>
                   </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="guestMute"
+                      checked={formData.guestMute}
+                      onCheckedChange={(val) => setFormData({ ...formData, guestMute: val })}
+                    />
+                    <Label htmlFor="guestMute">Guest Mute</Label>
+                  </div>
                 </div>
               </div>
               {/* Conditional Schedule Time Field */}
@@ -557,25 +588,25 @@ export default function CreateConferenceModal() {
                       <span className="text-red-500">*</span>
                     </Label>
 
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      placeholder="Search audio files..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pr-10"
-                      aria-label="Search audio files"
-                    />
-                    {searchQuery && (
-                      <button
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                        onClick={() => setSearchQuery('')}
-                        aria-label="Clear search"
-                      >
-                        <X className="h-4 w-4 text-gray-500" />
-                      </button>
-                    )}
-                  </div>
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        placeholder="Search audio files..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pr-10"
+                        aria-label="Search audio files"
+                      />
+                      {searchQuery && (
+                        <button
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                          onClick={() => setSearchQuery('')}
+                          aria-label="Clear search"
+                        >
+                          <X className="h-4 w-4 text-gray-500" />
+                        </button>
+                      )}
+                    </div>
                     {/* Audio File Selector */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="col-span-2">
