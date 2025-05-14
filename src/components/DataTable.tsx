@@ -132,7 +132,7 @@ const DataTable = <T,>({
                         )}
                       </Button>
                     ) : (
-                      <div className="text-left">{flexRender(header.column.columnDef.header, header.getContext())}</div>
+                      <div>{flexRender(header.column.columnDef.header, header.getContext())}</div>
                     )}
                   </TableHead>
                 ))}
@@ -144,7 +144,7 @@ const DataTable = <T,>({
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="text-left">
+                    <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}

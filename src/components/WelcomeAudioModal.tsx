@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { X, FileAudio, Check, Upload, Trash2, Play, Pause, Plus } from 'lucide-react';
+import { X, FileAudio, Check, Upload, Trash2, Play, Pause, } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Define types
@@ -266,7 +266,6 @@ export default function WelcomeAudioModal() {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="default" className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
           Audio Manager
         </Button>
       </DialogTrigger>

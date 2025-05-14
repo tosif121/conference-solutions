@@ -1,6 +1,6 @@
 'use client';
 
-import { JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Mic, PhoneCall, Folder, Activity, Edit } from 'lucide-react';
@@ -9,47 +9,50 @@ import WelcomeAudioModal from './WelcomeAudioModal';
 import DataTable from './DataTable';
 import { conferenceService } from '@/utils/services';
 import toast from 'react-hot-toast';
-import moment from 'moment';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import { Button } from './ui/button';
-import DateRangePicker from './DateRangePicker';
 
 export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
+
+  // Updated Conference interface to match the actual API response
   interface Conference {
-    _id: string;
-    hostNumber: string;
-    adminUser: string;
-    dialedNumber: string;
-    numberOfGuests: number;
-    status: string;
-    conference: string;
-    type: string;
-    answerTime: string | null;
-    hangupTime: string | null;
+    conferenceName: string;
+    description: string;
+    host: {
+      name: string;
+      phoneNumber: string;
+    };
+    guests: Array<{
+      name: string;
+      phoneNumber: string;
+      guestArrivalMusic?: string;
+    }>;
+    welcomeAudioId: string;
+    playWelcomeAudio: boolean;
+    retryOnNoAnswer: boolean;
+    retryCount: number;
+    guestMute: boolean;
+    announcementEnabled: boolean;
+    id: string;
+    status?: string;
+    answerTime?: string | null;
+    hangupTime?: string | null;
   }
 
   const [conferencesData, setConferencesData] = useState<Conference[]>([]);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [open, setOpen] = useState<boolean>(false);
+  const [editConference, setEditConference] = useState<Conference | undefined>(undefined);
+  const [stats, setStats] = useState({
+    total: 0,
+    live: 0,
+    audioFiles: 18, // Hard-coded for now, update if you have API for this
+    didsAssigned: 5, // Hard-coded for now, update if you have API for this
+  });
 
-  // Set initial date range only once on component mount
   useEffect(() => {
-    const today = moment().endOf('day');
-    const sevenDaysAgo = moment().subtract(7, 'days').startOf('day');
-
-    setStartDate(sevenDaysAgo.format('YYYY-MM-DD'));
-    setEndDate(today.format('YYYY-MM-DD'));
-
-    // Initial data fetch will happen in the next useEffect when startDate and endDate are set
+    fetchConferences();
   }, []);
-
-  // Fetch conferences only when both dates are available and either date changes
-  useEffect(() => {
-    if (startDate && endDate) {
-      fetchConferences();
-    }
-  }, [startDate, endDate]);
 
   const fetchConferences = async () => {
     setIsLoading(true);
@@ -57,8 +60,10 @@ export default function AdminDashboard() {
     try {
       const res = await conferenceService.getAllConferences();
       if (res?.status) {
-        console.log(res.data);
-        setConferencesData(res.data);
+        // Assuming the API returns an array directly or in a nested property
+        let conferences = Array.isArray(res.data) ? res.data : res.data.conferences || [];
+
+        setConferencesData(conferences);
       } else {
         toast.error(res.message || 'Failed to fetch conferences');
       }
@@ -70,245 +75,119 @@ export default function AdminDashboard() {
     }
   };
 
-  // Handle date picker changes - combine all state updates to prevent multiple renders
-  const handleDateChange = (update: [Date | null, Date | null]) => {
-    if (Array.isArray(update) && update.length === 2 && update[0] && update[1]) {
-      // Update date range state
-
-      // Format dates for API calls
-      const formattedStartDate = moment(update[0]).format('YYYY-MM-DD');
-      const formattedEndDate = moment(update[1]).format('YYYY-MM-DD');
-
-      // Update date strings in a single batch to minimize renders
-      setStartDate(formattedStartDate);
-      setEndDate(formattedEndDate);
-
-      // The fetchConferences will be triggered by the useEffect that depends on startDate and endDate
-    }
-  };
-
   const handleDelete = async (id: string) => {
     try {
       const res = await conferenceService.deleteConference(id);
       if (res.status) {
-        setConferencesData((prev) => prev.filter((item) => item._id !== id));
-        toast.success(res.message);
+        setConferencesData((prev) => prev.filter((item) => item.id !== id));
+        toast.success(res.message || 'Conference deleted successfully');
+
+        // Update stats after deletion
+        setStats((prev) => ({
+          ...prev,
+          total: prev.total - 1,
+          live: conferencesData.find((conf) => conf.id === id && (conf.status === 'active' || conf.status === 'live'))
+            ? prev.live - 1
+            : prev.live,
+        }));
       } else {
-        toast.error(res.message || 'Failed to delete Conferences');
+        toast.error(res.message || 'Failed to delete Conference');
       }
     } catch (err) {
       toast.error('Something went wrong while deleting');
     }
   };
 
-  const handleEdit = async (username: string) => {
+  const handleEdit = async (id: string) => {
     try {
-      const res = await conferenceService.getConferenceById(username);
+      const res = await conferenceService.getConferenceById(id);
       if (res.status) {
-        // setAdminByUsername(res.data.admin);
-        toast.success(res.message);
+        toast.success(res.message || 'Retrieved conference details');
+        setEditConference(res.data.conference);
+        setOpen(true);
       } else {
-        toast.error(res.message || 'Failed to fetch administrator details');
+        toast.error(res.message || 'Failed to fetch conference details');
       }
     } catch (err) {
-      toast.error('Something went wrong while fetching administrator details');
+      toast.error('Something went wrong while fetching conference details');
     }
   };
 
   const columns = useMemo(
     () => [
       {
+        id: 'conferenceName',
+        accessorKey: 'conferenceName',
+        header: () => 'Conference Name',
+        cell: ({ row }: { row: { original: Conference } }) => <span>{row.original.conferenceName}</span>,
+      },
+      {
+        id: 'hostName',
+        accessorKey: 'host.name',
+        header: () => 'Host Name',
+        cell: ({ row }: { row: { original: Conference } }) => <span>{row.original.host?.name || '-'}</span>,
+      },
+      {
         id: 'hostNumber',
-        accessorKey: 'hostNumber',
+        accessorKey: 'host.phoneNumber',
         header: () => 'Host Number',
-        cell: ({ row }: { row: { original: { hostNumber: string } } }) => <span>{row.original.hostNumber}</span>,
-      },
-      {
-        id: 'adminUser',
-        accessorKey: 'adminUser',
-        header: () => 'Admin User',
-        cell: ({ row }: { row: { original: { adminUser: string } } }) => <span>{row.original.adminUser}</span>,
-      },
-      {
-        id: 'dialedNumber',
-        accessorKey: 'dialedNumber',
-        header: () => 'Dialed Number',
-        cell: ({ row }: { row: { original: { dialedNumber: string } } }) => <span>{row.original.dialedNumber}</span>,
+        cell: ({ row }: { row: { original: Conference } }) => <span>{row.original.host?.phoneNumber || '-'}</span>,
       },
       {
         id: 'numberOfGuests',
-        accessorKey: 'numberOfGuests',
+        accessorKey: 'guests',
         header: () => 'Guests',
-        cell: ({ row }: { row: { original: { numberOfGuests: number } } }) => (
-          <span>{row.original.numberOfGuests}</span>
+        cell: ({ row }: { row: { original: Conference } }) => <span>{row.original.guests?.length || 0}</span>,
+      },
+      {
+        id: 'description',
+        accessorKey: 'description',
+        header: () => 'Description',
+        cell: ({ row }: { row: { original: Conference } }) => (
+          <span className="truncate max-w-[150px] block" title={row.original.description}>
+            {row.original.description || '-'}
+          </span>
         ),
       },
       {
-        id: 'status',
-        accessorKey: 'status',
-        header: () => 'Status',
-        cell: ({ row }: { row: { original: { status: string } } }) => <span>{row.original.status}</span>,
-      },
-      {
-        id: 'conference',
-        accessorKey: 'conference',
-        header: () => 'Conference',
-        cell: ({ row }: { row: { original: { conference: string } } }) => <span>{row.original.conference}</span>,
-      },
-      {
-        id: 'type',
-        accessorKey: 'type',
-        header: () => 'Type',
-        cell: ({ row }: { row: { original: { type: string } } }) => <span>{row.original.type}</span>,
-      },
-      // {
-      //   id: 'guestChannels',
-      //   accessorKey: 'guestChannels',
-      //   header: () => 'Guest Channels',
-      //   disableSorting: true,
-      //   cell: ({ row }: { row: { original: any } }) => (
-      //     <div className="flex flex-col gap-1 max-w-xs">
-      //       {row.original.guestChannels && row.original.guestChannels.length > 0 ? (
-      //         row.original.guestChannels.map(
-      //           (
-      //             guest: {
-      //               name:
-      //                 | string
-      //                 | number
-      //                 | bigint
-      //                 | boolean
-      //                 | ReactElement<unknown, string | JSXElementConstructor<any>>
-      //                 | Iterable<ReactNode>
-      //                 | ReactPortal
-      //                 | Promise<
-      //                     | string
-      //                     | number
-      //                     | bigint
-      //                     | boolean
-      //                     | ReactPortal
-      //                     | ReactElement<unknown, string | JSXElementConstructor<any>>
-      //                     | Iterable<ReactNode>
-      //                     | null
-      //                     | undefined
-      //                   >
-      //                 | null
-      //                 | undefined;
-      //               phoneNumber:
-      //                 | string
-      //                 | number
-      //                 | bigint
-      //                 | boolean
-      //                 | ReactElement<unknown, string | JSXElementConstructor<any>>
-      //                 | Iterable<ReactNode>
-      //                 | ReactPortal
-      //                 | Promise<
-      //                     | string
-      //                     | number
-      //                     | bigint
-      //                     | boolean
-      //                     | ReactPortal
-      //                     | ReactElement<unknown, string | JSXElementConstructor<any>>
-      //                     | Iterable<ReactNode>
-      //                     | null
-      //                     | undefined
-      //                   >
-      //                 | null
-      //                 | undefined;
-      //               status:
-      //                 | string
-      //                 | number
-      //                 | bigint
-      //                 | boolean
-      //                 | ReactElement<unknown, string | JSXElementConstructor<any>>
-      //                 | Iterable<ReactNode>
-      //                 | ReactPortal
-      //                 | Promise<
-      //                     | string
-      //                     | number
-      //                     | bigint
-      //                     | boolean
-      //                     | ReactPortal
-      //                     | ReactElement<unknown, string | JSXElementConstructor<any>>
-      //                     | Iterable<ReactNode>
-      //                     | null
-      //                     | undefined
-      //                   >
-      //                 | null
-      //                 | undefined;
-      //             },
-      //             idx: Key | null | undefined
-      //           ) => (
-      //             <div key={idx} className="flex gap-2 items-center text-xs border-b last:border-b-0 py-1">
-      //               <span className="font-semibold">{guest.name}</span>
-      //               <span>{guest.phoneNumber}</span>
-      //               <span className="italic text-slate-500">{guest.status}</span>
-      //             </div>
-      //           )
-      //         )
-      //       ) : (
-      //         <span className="text-slate-400 text-xs">No Guests</span>
-      //       )}
-      //     </div>
-      //   ),
-      // },
-      {
-        id: 'answerTime',
-        accessorKey: 'answerTime',
-        header: () => 'Answer Time',
-        cell: ({ row }: { row: { original: { answerTime: string | null; hangupTime: string | null } } }) => (
-          <span>{row.original.answerTime ? moment(row.original.answerTime).format('DD-MMM-YYYY h:mm A') : '-'}</span>
+        id: 'features',
+        header: () => 'Features',
+        cell: ({ row }: { row: { original: Conference } }) => (
+          <div className="flex flex-wrap gap-1">
+            {row.original.playWelcomeAudio && (
+              <Badge variant="secondary" className="text-xs">
+                Welcome Audio
+              </Badge>
+            )}
+            {row.original.guestMute && (
+              <Badge variant="secondary" className="text-xs">
+                Guest Mute
+              </Badge>
+            )}
+            {row.original.announcementEnabled && (
+              <Badge variant="secondary" className="text-xs">
+                Announcements
+              </Badge>
+            )}
+          </div>
         ),
-      },
-      {
-        id: 'hangupTime',
-        accessorKey: 'hangupTime',
-        header: () => 'Hangup Time',
-        cell: ({ row }: { row: { original: { answerTime: string | null; hangupTime: string | null } } }) => (
-          <span>{row.original.hangupTime ? moment(row.original.hangupTime).format('DD-MMM-YYYY h:mm A') : '-'}</span>
-        ),
-      },
-      {
-        id: 'duration',
-        header: () => 'Duration',
-        cell: ({ row }: { row: { original: { answerTime: string | null; hangupTime: string | null } } }) => {
-          if (!row.original.answerTime || !row.original.hangupTime) return '-';
-
-          const start = moment(row.original.answerTime);
-          const end = moment(row.original.hangupTime);
-          const duration = moment.duration(end.diff(start));
-
-          // Format duration as HH:MM:SS
-          return `${Math.floor(duration.asHours())}:${duration.minutes().toString().padStart(2, '0')}:${duration
-            .seconds()
-            .toString()
-            .padStart(2, '0')}`;
-        },
       },
       {
         id: 'actions',
         header: () => 'Actions',
         disableSorting: true,
-        cell: ({
-          row,
-        }: {
-          row: {
-            original: {
-              _id(_id: any): void;
-              id: string;
-            };
-          };
-        }) => (
+        cell: ({ row }: { row: { original: Conference } }) => (
           <div className="flex gap-x-4">
             <DeleteConfirmationModal
-              onDelete={() => handleDelete(row.original._id as unknown as string)}
-              itemName={`Conference`}
+              onDelete={() => handleDelete(row.original.id)}
+              itemName={`Conference ${row.original.conferenceName}`}
             />
 
             <Button
               className="bg-green-600 hover:bg-green-700 text-white"
               size="sm"
               title="Edit"
-              onClick={() => handleEdit(row.original._id as unknown as string)}
+              onClick={() => handleEdit(row.original.id)}
             >
               <Edit className="h-4 w-4" />
             </Button>
@@ -327,7 +206,15 @@ export default function AdminDashboard() {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <CreateConferenceModal />
+          <CreateConferenceModal
+            open={open}
+            setOpen={setOpen}
+            editConference={editConference}
+            fetchConferences={fetchConferences}
+          />
+          <Button variant={'default'} onClick={() => setOpen(true)}>
+            Create Conference
+          </Button>
           <WelcomeAudioModal />
         </div>
       </div>
@@ -342,8 +229,8 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-muted-foreground">Total Conferences</p>
               <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">42</h2>
-                <span className="text-xs text-green-500">+12% ↑</span>
+                <h2 className="text-2xl font-bold">{stats.total}</h2>
+                {stats.total > 0 && <span className="text-xs text-green-500">Active</span>}
               </div>
             </div>
           </CardContent>
@@ -357,13 +244,15 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-muted-foreground">Live Conferences</p>
               <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">3</h2>
-                <Badge
-                  variant="outline"
-                  className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                >
-                  Live
-                </Badge>
+                <h2 className="text-2xl font-bold">{stats.live}</h2>
+                {stats.live > 0 && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                  >
+                    Live
+                  </Badge>
+                )}
               </div>
             </div>
           </CardContent>
@@ -377,8 +266,8 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-muted-foreground">Audio Files</p>
               <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">18</h2>
-                <span className="text-xs text-orange-500">+3 today</span>
+                <h2 className="text-2xl font-bold">{stats.audioFiles}</h2>
+                <span className="text-xs text-orange-500">Available</span>
               </div>
             </div>
           </CardContent>
@@ -392,7 +281,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-muted-foreground">DIDs Assigned</p>
               <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">5</h2>
+                <h2 className="text-2xl font-bold">{stats.didsAssigned}</h2>
                 <span className="text-xs text-blue-500">of 10 available</span>
               </div>
             </div>
@@ -403,11 +292,6 @@ export default function AdminDashboard() {
       <Card className="lg:col-span-2">
         <CardHeader className="pb-0 flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Conferences Management</CardTitle>
-          <DateRangePicker
-            onDateChange={handleDateChange}
-            initialStartDate={startDate || undefined}
-            initialEndDate={endDate || undefined}
-          />
         </CardHeader>
 
         <CardContent>

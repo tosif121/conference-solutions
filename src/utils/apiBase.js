@@ -13,6 +13,11 @@ function generateHeaders(contentType = 'application/json') {
 
   return { headers };
 }
+function logoutAndRedirect() {
+  Cookies.remove('super_admin_token');
+  Cookies.remove('admin_token');
+  window.location.href = '/admin/login';
+}
 
 async function makeRequest(method, url, params, contentType = 'application/json') {
   try {
@@ -35,6 +40,13 @@ async function makeRequest(method, url, params, contentType = 'application/json'
         return errorResponse({ message: `Unsupported request method: ${method}` });
     }
   } catch (error) {
+    const status = error?.response?.status;
+    if ([400, 403, 500].includes(status)) {
+      logoutAndRedirect();
+      return errorResponse({
+        message: 'Session expired or unauthorized. Redirecting to login.',
+      });
+    }
     return errorResponse({
       message: error?.response?.data?.message || 'Request failed.',
     });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogTrigger, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,10 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import toast from 'react-hot-toast';
-import { Calendar, Plus, Trash2, FileAudio, X, Clock } from 'lucide-react';
+import { Plus, Trash2, FileAudio, X, Pause, Play, Check } from 'lucide-react';
 import { conferenceService } from '@/utils/services';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
 
 // Define types
 interface Host {
@@ -22,7 +20,15 @@ interface Host {
 interface Guest {
   name: string;
   phoneNumber: string;
-  retryCount: number;
+  guestArrivalMusic: string;
+}
+
+interface AudioFile {
+  id: string;
+  name: string;
+  size: string;
+  duration: string;
+  dateUploaded: string;
 }
 
 interface FormData {
@@ -34,44 +40,138 @@ interface FormData {
   playWelcomeAudio: boolean;
   retryOnNoAnswer: boolean;
   guestMute: boolean;
+  retryCount: number;
   announcementEnabled: boolean;
-  pinProtected: boolean;
-  hostPin: string;
-  guestPin: string;
-  isScheduled: boolean;
-  scheduledAt: string;
-  scheduledDate: Date | null;
+}
+
+interface Conference {
+  id: string;
+  conferenceName: string;
+  description: string;
+  host: {
+    name: string;
+    phoneNumber: string;
+  };
+  guests: Array<{
+    name: string;
+    phoneNumber: string;
+    guestArrivalMusic?: string;
+  }>;
+  welcomeAudioId: string;
+  playWelcomeAudio: boolean;
+  retryOnNoAnswer: boolean;
+  retryCount: number;
+  guestMute: boolean;
+  announcementEnabled: boolean;
+  status?: string;
+  answerTime?: string | null;
+  hangupTime?: string | null;
 }
 
 interface FormErrors {
   [key: string]: string;
 }
 
-// Welcome Audio Upload Modal Component
+interface CreateConferenceModalProps {
+  fetchConferences: () => void;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  editConference?: Conference;
+}
 
-export default function CreateConferenceModal() {
-  const [open, setOpen] = useState<boolean>(false);
+export default function CreateConferenceModal({
+  fetchConferences,
+  open,
+  setOpen,
+  editConference,
+}: CreateConferenceModalProps) {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [searchQuery, setSearchQuery] = useState<string>('');
-
+  const [sortBy, setSortBy] = useState<string>('dateDesc');
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [currentPlayingId, setCurrentPlayingId] = useState<string>('');
+  const [isEditMode, setIsEditMode] = useState<boolean>(false);
   const [formData, setFormData] = useState<FormData>({
     conferenceName: '',
     description: '',
     host: { name: '', phoneNumber: '' },
-    guests: [{ name: '', phoneNumber: '', retryCount: 1 }],
+    guests: [{ name: '', phoneNumber: '', guestArrivalMusic: '' }],
     welcomeAudioId: '',
+    retryCount: 1,
     playWelcomeAudio: false,
     retryOnNoAnswer: false,
     guestMute: false,
     announcementEnabled: false,
-    pinProtected: false,
-    hostPin: '',
-    guestPin: '',
-    isScheduled: false,
-    scheduledAt: '',
-    scheduledDate: null,
   });
+  const [audioFiles, setAudioFiles] = useState<AudioFile[]>([
+    {
+      id: 'audio_welcome_standard_123456',
+      name: 'Welcome Standard',
+      size: '320 KB',
+      duration: '0:12',
+      dateUploaded: '2025-04-15',
+    },
+    {
+      id: 'audio_conference_intro_789012',
+      name: 'Conference Introduction',
+      size: '450 KB',
+      duration: '0:23',
+      dateUploaded: '2025-04-20',
+    },
+    {
+      id: 'audio_meeting_start_345678',
+      name: 'Meeting Start',
+      size: '280 KB',
+      duration: '0:15',
+      dateUploaded: '2025-05-01',
+    },
+  ]);
+  const [selectedAudio, setSelectedAudio] = useState<string>('');
+  const audioTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Effect to populate form data when editConference changes
+  useEffect(() => {
+    if (editConference) {
+      setIsEditMode(true);
+
+      // Format phone numbers by removing the +91 prefix if present
+      const formatPhoneForEdit = (phone: string) => {
+        return phone?.replace(/^\+91/, '') || '';
+      };
+
+      // Populate the form with existing conference data
+      setFormData({
+        conferenceName: editConference.conferenceName || '',
+        description: editConference.description || '',
+        host: {
+          name: editConference.host?.name || '',
+          phoneNumber: formatPhoneForEdit(editConference.host?.phoneNumber || ''),
+        },
+        guests:
+          editConference.guests?.length > 0
+            ? editConference.guests.map((guest) => ({
+                name: guest.name || '',
+                phoneNumber: formatPhoneForEdit(guest.phoneNumber || ''),
+                guestArrivalMusic: guest.guestArrivalMusic || '',
+              }))
+            : [{ name: '', phoneNumber: '', guestArrivalMusic: '' }],
+        welcomeAudioId: editConference.welcomeAudioId || '',
+        playWelcomeAudio: editConference.playWelcomeAudio || false,
+        retryOnNoAnswer: editConference.retryOnNoAnswer || false,
+        retryCount: editConference.retryCount || 1,
+        guestMute: editConference.guestMute || false,
+        announcementEnabled: editConference.announcementEnabled || false,
+      });
+
+      // Set selected audio if it exists
+      if (editConference.welcomeAudioId) {
+        setSelectedAudio(editConference.welcomeAudioId);
+      }
+    } else {
+      setIsEditMode(false);
+    }
+  }, [editConference]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -107,38 +207,9 @@ export default function CreateConferenceModal() {
       }
     });
 
-    // PIN validation when enabled
-    if (formData.pinProtected) {
-      if (!formData.hostPin) {
-        newErrors.hostPin = 'Host PIN is required when PIN protection is enabled';
-      } else if (!/^\d{4,6}$/.test(formData.hostPin)) {
-        newErrors.hostPin = 'PIN must be 4-6 digits';
-      }
-
-      if (!formData.guestPin) {
-        newErrors.guestPin = 'Guest PIN is required when PIN protection is enabled';
-      } else if (!/^\d{4,6}$/.test(formData.guestPin)) {
-        newErrors.guestPin = 'PIN must be 4-6 digits';
-      }
-    }
-
-    // Date validation only if scheduling is enabled
-    if (formData.isScheduled) {
-      if (!formData.scheduledDate) {
-        newErrors.scheduledAt = 'Schedule time is required';
-      } else {
-        const scheduledTime = formData.scheduledDate.getTime();
-        const now = new Date().getTime();
-
-        if (scheduledTime <= now) {
-          newErrors.scheduledAt = 'Schedule time must be in the future';
-        }
-      }
-    }
-
     // Welcome Audio validation when enabled
-    if (formData.playWelcomeAudio && !formData.welcomeAudioId.trim()) {
-      newErrors.welcomeAudioId = 'Welcome Audio is required when welcome audio is enabled';
+    if (formData.playWelcomeAudio && !selectedAudio) {
+      newErrors.welcomeAudioId = 'Welcome Audio selection is required when welcome audio is enabled';
     }
 
     setErrors(newErrors);
@@ -154,47 +225,56 @@ export default function CreateConferenceModal() {
     const formatPhone = (num: string) => (num ? `+91${num}` : '');
 
     try {
-      // Update the scheduledAt to use the DatePicker value
-      let scheduledAtTimestamp;
-      if (formData.isScheduled && formData.scheduledDate) {
-        scheduledAtTimestamp = formData.scheduledDate.getTime();
-      }
+      // Update welcomeAudioId from selected audio before submission
+      const dataToSubmit = {
+        ...formData,
+        welcomeAudioId: selectedAudio,
+      };
 
-      // Simulate API call
+      // Prepare payload for API
       const payload = {
-        conferenceName: formData.conferenceName,
-        description: formData.description,
+        conferenceName: dataToSubmit.conferenceName,
+        description: dataToSubmit.description,
         host: {
-          ...formData.host,
-          phoneNumber: formatPhone(formData.host.phoneNumber),
+          ...dataToSubmit.host,
+          phoneNumber: formatPhone(dataToSubmit.host.phoneNumber),
         },
-        guests: formData.guests
+        guests: dataToSubmit.guests
           .filter((guest) => guest.name || guest.phoneNumber)
           .map((guest) => ({
             ...guest,
             phoneNumber: formatPhone(guest.phoneNumber),
           })),
-        welcomeAudioId: formData.playWelcomeAudio ? formData.welcomeAudioId : undefined,
-        playWelcomeAudio: formData.playWelcomeAudio,
-        retryOnNoAnswer: formData.retryOnNoAnswer,
-        guestMute: formData.guestMute,
-        announcementEnabled: formData.announcementEnabled,
-        pinProtected: formData.pinProtected,
-        hostPin: formData.pinProtected ? formData.hostPin : undefined,
-        guestPin: formData.pinProtected ? formData.guestPin : undefined,
-        scheduledAt: scheduledAtTimestamp,
+        welcomeAudioId: dataToSubmit.playWelcomeAudio ? dataToSubmit.welcomeAudioId : undefined,
+        playWelcomeAudio: dataToSubmit.playWelcomeAudio,
+        retryOnNoAnswer: dataToSubmit.retryOnNoAnswer,
+        retryCount: dataToSubmit.retryOnNoAnswer ? dataToSubmit.retryCount : undefined,
+        guestMute: dataToSubmit.guestMute,
+        announcementEnabled: dataToSubmit.announcementEnabled,
       };
 
-      const response = await conferenceService.createConference(payload);
+      let response;
+
+      if (isEditMode && editConference) {
+        // Update existing conference
+        response = await conferenceService.updateConference(editConference.id, payload);
+      } else {
+        // Create new conference
+        response = await conferenceService.createConference(payload);
+      }
 
       if (response.status) {
-        toast.success(response.message);
+        toast.success(response.message || `Conference ${isEditMode ? 'updated' : 'created'} successfully`);
         setOpen(false);
         resetForm();
+        fetchConferences();
+      } else {
+        // Handle unsuccessful response with status false
+        toast.error(response.message || `Failed to ${isEditMode ? 'update' : 'create'} conference`);
       }
     } catch (error) {
-      toast.error('Failed to create conference. Please try again.');
-      console.error(error);
+      toast.error(`Failed to ${isEditMode ? 'update' : 'create'} conference. Please try again.`);
+      console.error(`Conference ${isEditMode ? 'update' : 'creation'} error:`, error);
     } finally {
       setIsSubmitting(false);
     }
@@ -205,20 +285,17 @@ export default function CreateConferenceModal() {
       conferenceName: '',
       description: '',
       host: { name: '', phoneNumber: '' },
-      guests: [{ name: '', phoneNumber: '', retryCount: 1 }],
+      guests: [{ name: '', phoneNumber: '', guestArrivalMusic: '' }],
       welcomeAudioId: '',
+      retryCount: 1,
       playWelcomeAudio: false,
       retryOnNoAnswer: false,
       guestMute: false,
       announcementEnabled: false,
-      pinProtected: false,
-      hostPin: '',
-      guestPin: '',
-      isScheduled: false,
-      scheduledAt: '',
-      scheduledDate: null,
     });
+    setSelectedAudio('');
     setErrors({});
+    setIsEditMode(false);
   };
 
   const handleOpenChange = (newOpen: boolean): void => {
@@ -232,7 +309,7 @@ export default function CreateConferenceModal() {
   const addGuest = (): void => {
     setFormData({
       ...formData,
-      guests: [...formData.guests, { name: '', phoneNumber: '', retryCount: 1 }],
+      guests: [...formData.guests, { name: '', phoneNumber: '', guestArrivalMusic: '' }],
     });
   };
 
@@ -263,7 +340,7 @@ export default function CreateConferenceModal() {
   };
 
   // Update guest fields
-  const updateGuestField = (index: number, field: keyof Guest, value: string | number): void => {
+  const updateGuestField = (index: number, field: keyof Guest, value: string): void => {
     const newGuests = [...formData.guests];
     if (field === 'phoneNumber' && typeof value === 'string') {
       value = value.replace(/\D/g, '').slice(0, 10);
@@ -278,52 +355,75 @@ export default function CreateConferenceModal() {
     });
   };
 
-  const handleSelectAudio = (audioId: string): void => {
+  const filteredAudioFiles = audioFiles.filter((audio) => audio.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const sortedAudioFiles = [...filteredAudioFiles].sort((a, b) => {
+    switch (sortBy) {
+      case 'nameAsc':
+        return a.name.localeCompare(b.name);
+      case 'nameDesc':
+        return b.name.localeCompare(a.name);
+      case 'dateAsc':
+        return (a.dateUploaded || '').localeCompare(b.dateUploaded || '');
+      case 'dateDesc':
+      default:
+        return (b.dateUploaded || '').localeCompare(a.dateUploaded || '');
+    }
+  });
+
+  const togglePlayAudio = (id: string, e: React.MouseEvent): void => {
+    e.stopPropagation();
+
+    if (currentPlayingId === id && isPlaying) {
+      // Stop playing
+      setIsPlaying(false);
+      setCurrentPlayingId('');
+
+      // Clear any existing timeout
+      if (audioTimeoutRef.current) {
+        clearTimeout(audioTimeoutRef.current);
+        audioTimeoutRef.current = null;
+      }
+    } else {
+      // Stop any current audio
+      if (isPlaying && audioTimeoutRef.current) {
+        clearTimeout(audioTimeoutRef.current);
+        audioTimeoutRef.current = null;
+      }
+
+      // Start new audio
+      setCurrentPlayingId(id);
+      setIsPlaying(true);
+
+      // Mock audio duration - stop automatically after 5 seconds
+      audioTimeoutRef.current = setTimeout(() => {
+        setIsPlaying(false);
+        setCurrentPlayingId('');
+        audioTimeoutRef.current = null;
+      }, 5000);
+    }
+  };
+
+  // Handle audio selection and update form data
+  const handleAudioSelection = (audioId: string): void => {
+    setSelectedAudio(audioId);
     setFormData({
       ...formData,
       welcomeAudioId: audioId,
     });
-  };
 
-  const getAudioName = (audioId: string): string => {
-    if (!audioId) return '';
-
-    const parts = audioId.split('_');
-    if (parts.length >= 2) {
-      // Remove the first element ('audio') and the last element (timestamp)
-      const nameArray = parts.slice(1, -1);
-      return nameArray.join(' ').replace(/_/g, ' ');
+    // Clear any welcome audio error when a selection is made
+    if (errors.welcomeAudioId) {
+      const { welcomeAudioId, ...remainingErrors } = errors;
+      setErrors(remainingErrors);
     }
-    return audioId;
   };
-
-  // Date picker custom input
-  const CustomDatePickerInput = ({ value, onClick }: { value?: string; onClick?: () => void }) => (
-    <div className="relative" onClick={onClick}>
-      <Input
-        value={value}
-        className={`pl-10 cursor-pointer ${errors.scheduledAt ? 'border-red-500' : ''}`}
-        readOnly
-        placeholder="Select date and time"
-      />
-      <div className="absolute left-0 top-0 h-full flex items-center pl-3">
-        <Calendar className="h-4 w-4 text-gray-500" />
-      </div>
-    </div>
-  );
 
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogTrigger asChild>
-          <Button variant="default" className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Create Conference
-          </Button>
-        </DialogTrigger>
-
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogTitle>Create New Conference</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit Conference' : 'Create New Conference'}</DialogTitle>
 
           <div className="mt-4 space-y-6">
             {/* Conference Details Section */}
@@ -339,8 +439,14 @@ export default function CreateConferenceModal() {
                   value={formData.conferenceName}
                   onChange={(e) => setFormData({ ...formData, conferenceName: e.target.value })}
                   className={errors.conferenceName ? 'border-red-500' : ''}
+                  aria-invalid={!!errors.conferenceName}
+                  aria-describedby={errors.conferenceName ? 'conferenceName-error' : undefined}
                 />
-                {errors.conferenceName && <p className="text-red-500 text-sm">{errors.conferenceName}</p>}
+                {errors.conferenceName && (
+                  <p id="conferenceName-error" className="text-red-500 text-sm">
+                    {errors.conferenceName}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -371,9 +477,15 @@ export default function CreateConferenceModal() {
                       value={formData.host.name}
                       onChange={(e) => updateHostField('name', e.target.value)}
                       placeholder="Enter Host Name"
-                      className={`${errors.hostName ? 'border-red-500' : ''}`}
+                      className={errors.hostName ? 'border-red-500' : ''}
+                      aria-invalid={!!errors.hostName}
+                      aria-describedby={errors.hostName ? 'hostName-error' : undefined}
                     />
-                    {errors.hostName && <p className="text-red-500 text-sm">{errors.hostName}</p>}
+                    {errors.hostName && (
+                      <p id="hostName-error" className="text-red-500 text-sm">
+                        {errors.hostName}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -393,9 +505,15 @@ export default function CreateConferenceModal() {
                         onChange={(e) => updateHostField('phoneNumber', e.target.value)}
                         placeholder="Enter Mobile No."
                         className={`rounded-l-none ${errors.hostPhone ? 'border-red-500' : ''}`}
+                        aria-invalid={!!errors.hostPhone}
+                        aria-describedby={errors.hostPhone ? 'hostPhone-error' : undefined}
                       />
                     </div>
-                    {errors.hostPhone && <p className="text-red-500 text-sm">{errors.hostPhone}</p>}
+                    {errors.hostPhone && (
+                      <p id="hostPhone-error" className="text-red-500 text-sm">
+                        {errors.hostPhone}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -426,12 +544,14 @@ export default function CreateConferenceModal() {
                       size="sm"
                       onClick={() => removeGuest(index)}
                       className="absolute top-1 right-2 p-1 h-8 w-8"
+                      aria-label={`Remove guest ${index + 1}`}
                     >
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Existing name and phone fields remain the same */}
                     <div className="space-y-2">
                       <Label htmlFor={`guestName-${index}`}>Guest Name</Label>
                       <div className="relative">
@@ -440,11 +560,15 @@ export default function CreateConferenceModal() {
                           value={guest.name}
                           onChange={(e) => updateGuestField(index, 'name', e.target.value)}
                           placeholder="Enter Guest Name"
-                          className={`${errors[`guestName_${index}`] ? 'border-red-500' : ''}`}
+                          className={errors[`guestName_${index}`] ? 'border-red-500' : ''}
+                          aria-invalid={!!errors[`guestName_${index}`]}
+                          aria-describedby={errors[`guestName_${index}`] ? `guestName-error-${index}` : undefined}
                         />
                       </div>
                       {errors[`guestName_${index}`] && (
-                        <p className="text-red-500 text-sm">{errors[`guestName_${index}`]}</p>
+                        <p id={`guestName-error-${index}`} className="text-red-500 text-sm">
+                          {errors[`guestName_${index}`]}
+                        </p>
                       )}
                     </div>
 
@@ -460,26 +584,34 @@ export default function CreateConferenceModal() {
                           onChange={(e) => updateGuestField(index, 'phoneNumber', e.target.value)}
                           placeholder="Enter Mobile No."
                           className={`rounded-l-none ${errors[`guestPhone_${index}`] ? 'border-red-500' : ''}`}
+                          aria-invalid={!!errors[`guestPhone_${index}`]}
+                          aria-describedby={errors[`guestPhone_${index}`] ? `guestPhone-error-${index}` : undefined}
                         />
                       </div>
                       {errors[`guestPhone_${index}`] && (
-                        <p className="text-red-500 text-sm">{errors[`guestPhone_${index}`]}</p>
+                        <p id={`guestPhone-error-${index}`} className="text-red-500 text-sm">
+                          {errors[`guestPhone_${index}`]}
+                        </p>
                       )}
                     </div>
 
-                    {formData.retryOnNoAnswer && (
-                      <div className="space-y-2 col-span-2">
-                        <Label htmlFor={`retryCount-${index}`}>Retry Count</Label>
-                        <Input
-                          id={`retryCount-${index}`}
-                          type="number"
-                          min="1"
-                          max="5"
-                          value={guest.retryCount}
-                          onChange={(e) => updateGuestField(index, 'retryCount', parseInt(e.target.value, 10) || 1)}
-                        />
-                      </div>
-                    )}
+                    {/* Modified guestArrivalMusic field */}
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor={`guestArrivalMusic-${index}`}>Guest Arrival Music</Label>
+                      <select
+                        id={`guestArrivalMusic-${index}`}
+                        value={guest.guestArrivalMusic}
+                        onChange={(e) => updateGuestField(index, 'guestArrivalMusic', e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">Select arrival music (optional)</option>
+                        {audioFiles.map((audio) => (
+                          <option key={audio.id} value={audio.id}>
+                            {audio.name} ({audio.duration})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -499,8 +631,6 @@ export default function CreateConferenceModal() {
                         setFormData({
                           ...formData,
                           playWelcomeAudio: val,
-                          // If turning off welcome audio, clear any validation errors
-                          welcomeAudioId: val ? formData.welcomeAudioId : '',
                         });
                         if (!val) {
                           // Clear welcome audio errors when turning off
@@ -510,28 +640,6 @@ export default function CreateConferenceModal() {
                       }}
                     />
                     <Label htmlFor="playWelcomeAudio">Play Welcome Audio</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="isScheduled"
-                      checked={formData.isScheduled}
-                      onCheckedChange={(val) => {
-                        setFormData({
-                          ...formData,
-                          isScheduled: val,
-                          // If turning off scheduling, clear any validation errors
-                          scheduledDate: val ? formData.scheduledDate : null,
-                        });
-                        if (!val) {
-                          // Clear scheduling errors when turning off
-                          const { scheduledAt, ...otherErrors } = errors;
-                          setErrors(otherErrors);
-                        }
-                      }}
-                    />
-                    <Label htmlFor="isScheduled" className="flex items-center gap-1">
-                      Schedule for later
-                    </Label>
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -556,28 +664,6 @@ export default function CreateConferenceModal() {
 
                   <div className="flex items-center space-x-2">
                     <Switch
-                      id="pinProtected"
-                      checked={formData.pinProtected}
-                      onCheckedChange={(val) => {
-                        setFormData({
-                          ...formData,
-                          pinProtected: val,
-                          // If turning off PIN protection, clear PINs and validation errors
-                          hostPin: val ? formData.hostPin : '',
-                          guestPin: val ? formData.guestPin : '',
-                        });
-                        if (!val) {
-                          // Clear PIN-related errors when turning off
-                          const { hostPin, guestPin, ...otherErrors } = errors;
-                          setErrors(otherErrors);
-                        }
-                      }}
-                    />
-                    <Label htmlFor="pinProtected">PIN Protected</Label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
                       id="guestMute"
                       checked={formData.guestMute}
                       onCheckedChange={(val) => setFormData({ ...formData, guestMute: val })}
@@ -587,27 +673,22 @@ export default function CreateConferenceModal() {
                 </div>
               </div>
 
-              {/* Conditional Schedule Time Field with DatePicker */}
-              {formData.isScheduled && (
-                <div className="space-y-2 p-4 bg-primary-foreground rounded-md">
-                  <Label htmlFor="scheduledAt" className="flex items-center space-x-1">
-                    <span>Scheduled Time</span>
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <DatePicker
-                    selected={formData.scheduledDate}
-                    onChange={(date) => setFormData({ ...formData, scheduledDate: date })}
-                    showTimeSelect
-                    timeFormat="HH:mm"
-                    timeIntervals={15}
-                    dateFormat="MMMM d, yyyy h:mm aa"
-                    minDate={new Date()}
-                    placeholderText="Select date and time"
-                    customInput={<CustomDatePickerInput />}
-                    popperPlacement="bottom-start"
-                    className="w-full"
-                  />
-                  {errors.scheduledAt && <p className="text-red-500 text-sm">{errors.scheduledAt}</p>}
+              {/* Show global retryCount only when retryOnNoAnswer is true */}
+              {formData.retryOnNoAnswer && (
+                <div className="p-4 border rounded-md">
+                  <div className="space-y-2">
+                    <Label htmlFor="retryCount">Retry Count</Label>
+                    <Input
+                      id="retryCount"
+                      type="number"
+                      min="1"
+                      max="5"
+                      value={formData.retryCount}
+                      onChange={(e) => setFormData({ ...formData, retryCount: parseInt(e.target.value, 10) || 1 })}
+                      placeholder="Enter retry count"
+                    />
+                    <p className="text-xs text-slate-500">Number of times to retry calling guests who don't answer</p>
+                  </div>
                 </div>
               )}
 
@@ -619,128 +700,119 @@ export default function CreateConferenceModal() {
                       <span className="text-red-500">*</span>
                     </Label>
 
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        placeholder="Search audio files..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pr-10"
-                        aria-label="Search audio files"
-                      />
-                      {searchQuery && (
-                        <button
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                          onClick={() => setSearchQuery('')}
-                          aria-label="Clear search"
-                        >
-                          <X className="h-4 w-4 text-gray-500" />
-                        </button>
+                    <div className="flex flex-col md:flex-row gap-2">
+                      <div className="relative flex-grow">
+                        <Input
+                          type="text"
+                          placeholder="Search audio files..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pr-10"
+                          aria-label="Search audio files"
+                        />
+                        {searchQuery && (
+                          <button
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                            onClick={() => setSearchQuery('')}
+                            aria-label="Clear search"
+                          >
+                            <X className="h-4 w-4 text-gray-500" />
+                          </button>
+                        )}
+                      </div>
+
+                      <select
+                        className="px-3 py-2 border rounded-md"
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        aria-label="Sort audio files"
+                      >
+                        <option value="dateDesc">Newest First</option>
+                        <option value="dateAsc">Oldest First</option>
+                        <option value="nameAsc">Name A-Z</option>
+                        <option value="nameDesc">Name Z-A</option>
+                      </select>
+                    </div>
+
+                    {/* Audio files list */}
+                    <div className="max-h-64 overflow-y-auto space-y-2">
+                      {sortedAudioFiles.length === 0 ? (
+                        <div className="text-center p-4 text-slate-500 text-sm">
+                          {searchQuery ? 'No audio files found matching your search' : 'No audio files available'}
+                        </div>
+                      ) : (
+                        sortedAudioFiles.map((audio) => (
+                          <div
+                            key={audio.id}
+                            onClick={() => handleAudioSelection(audio.id)}
+                            className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors ${
+                              selectedAudio === audio.id
+                                ? 'bg-primary/10 border border-primary'
+                                : 'bg-slate-50 hover:bg-slate-100 border border-transparent'
+                            }`}
+                            role="button"
+                            aria-pressed={selectedAudio === audio.id}
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleAudioSelection(audio.id);
+                              }
+                            }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <FileAudio className="text-primary h-5 w-5" />
+                              <div className="w-full overflow-hidden">
+                                <p className="font-medium text-sm truncate">{audio.name}</p>
+                                <div className="flex text-xs text-slate-500 gap-2">
+                                  <span>{audio.size}</span>
+                                  <span>•</span>
+                                  <span>{audio.duration}</span>
+                                  {audio.dateUploaded && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{audio.dateUploaded}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={(e) => togglePlayAudio(audio.id, e)}
+                                aria-label={
+                                  currentPlayingId === audio.id && isPlaying
+                                    ? `Pause ${audio.name}`
+                                    : `Play ${audio.name}`
+                                }
+                              >
+                                {currentPlayingId === audio.id && isPlaying ? (
+                                  <Pause className="h-4 w-4" />
+                                ) : (
+                                  <Play className="h-4 w-4" />
+                                )}
+                              </Button>
+
+                              {selectedAudio === audio.id && (
+                                <div className="flex items-center justify-center h-7 w-7">
+                                  <Check className="h-4 w-4 text-primary" aria-hidden="true" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))
                       )}
                     </div>
-                    {/* Audio File Selector */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="col-span-2">
-                        <div className="relative">
-                          <Input
-                            id="welcomeAudioId"
-                            value={formData.welcomeAudioId}
-                            onChange={(e) => setFormData({ ...formData, welcomeAudioId: e.target.value })}
-                            placeholder="Enter audio ID or select a file"
-                            className={`pl-10 ${errors.welcomeAudioId ? 'border-red-500' : ''}`}
-                            readOnly={false}
-                          />
-                          <FileAudio className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
-                        </div>
-                        {errors.welcomeAudioId && <p className="text-red-500 text-sm">{errors.welcomeAudioId}</p>}
-                      </div>
 
-                      <div>
-                        <Input
-                          id="welcomeAudioFile"
-                          type="file"
-                          accept="audio/*"
-                          className="cursor-pointer"
-                          onChange={(e) => {
-                            // In a real implementation, you would handle file upload here
-                            // and then set the returned ID to welcomeAudioId
-                            if (e.target.files && e.target.files[0]) {
-                              const fileName = e.target.files[0].name;
-                              // Simulate ID generation from filename
-                              const simulatedId = `audio_${fileName
-                                .replace(/\.[^/.]+$/, '')
-                                .replace(/\s+/g, '_')
-                                .toLowerCase()}_${Date.now().toString().substr(-6)}`;
-                              setFormData({ ...formData, welcomeAudioId: simulatedId });
-                            }
-                          }}
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Supported formats: MP3, WAV (max 5MB)</p>
-                      </div>
-                    </div>
-
-                    {/* Audio Preview - Would show when audio is selected */}
-                    {formData.welcomeAudioId && (
-                      <div className="p-3 border rounded-md bg-white">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <FileAudio className="h-5 w-5 text-blue-500" />
-                            <span className="text-sm font-medium truncate">
-                              {formData.welcomeAudioId.includes('_')
-                                ? formData.welcomeAudioId.split('_').slice(1, -1).join('_').replace(/_/g, ' ')
-                                : 'Selected Audio'}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={() => setFormData({ ...formData, welcomeAudioId: '' })}
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
+                    {errors.welcomeAudioId && formData.playWelcomeAudio && (
+                      <p id="welcomeAudio-error" className="text-red-500 text-sm mt-2">
+                        {errors.welcomeAudioId}
+                      </p>
                     )}
-                  </div>
-                </div>
-              )}
-
-              {formData.pinProtected && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 p-4 bg-gray-50 rounded-md">
-                  <div className="space-y-2">
-                    <Label htmlFor="hostPin" className="flex items-center space-x-1">
-                      <span>Host PIN</span>
-                      <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="hostPin"
-                      type="password"
-                      value={formData.hostPin}
-                      onChange={(e) => setFormData({ ...formData, hostPin: e.target.value })}
-                      placeholder="4-6 digits"
-                      className={errors.hostPin ? 'border-red-500' : ''}
-                    />
-                    {errors.hostPin && <p className="text-red-500 text-sm">{errors.hostPin}</p>}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="guestPin" className="flex items-center space-x-1">
-                      <span>Guest PIN</span>
-                      <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="guestPin"
-                      type="password"
-                      value={formData.guestPin}
-                      onChange={(e) => setFormData({ ...formData, guestPin: e.target.value })}
-                      placeholder="4-6 digits"
-                      className={errors.guestPin ? 'border-red-500' : ''}
-                    />
-                    {errors.guestPin && <p className="text-red-500 text-sm">{errors.guestPin}</p>}
                   </div>
                 </div>
               )}
@@ -752,7 +824,13 @@ export default function CreateConferenceModal() {
               Cancel
             </Button>
             <Button onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create Conference'}
+              {isSubmitting
+                ? isEditMode
+                  ? 'Updating...'
+                  : 'Creating...'
+                : isEditMode
+                ? 'Update Admin'
+                : 'Create Admin'}
             </Button>
           </DialogFooter>
         </DialogContent>
