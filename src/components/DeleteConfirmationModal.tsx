@@ -13,7 +13,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Trash } from 'lucide-react';
 
-export default function DeleteConfirmationModal({ onDelete, itemName = 'item' }: { onDelete: (event?: React.MouseEvent<HTMLButtonElement>) => void; itemName?: string }) {
+export default function DeleteConfirmationModal({
+  onDelete,
+  itemName = 'item',
+}: {
+  onDelete: (event?: React.MouseEvent<HTMLButtonElement>) => void;
+  itemName?: string;
+}) {
   const [open, setOpen] = useState(false);
 
   const handleDelete = () => {
@@ -24,7 +30,7 @@ export default function DeleteConfirmationModal({ onDelete, itemName = 'item' }:
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
-        <Button variant="destructive" size="sm" title="Delete">
+        <Button className="bg-red-600 hover:bg-red-700 text-white" size="sm" title="Delete">
           <Trash className="h-4 w-4" />
         </Button>
       </AlertDialogTrigger>

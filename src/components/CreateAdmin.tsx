@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { createAdmin, updateAdmin } from '@/utils/services';
+import { adminService } from '@/utils/services';
 
 interface Admin {
   username: string;
@@ -221,10 +221,10 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
 
       if (isEditMode) {
         // Update existing admin - pass username as first parameter
-        response = await updateAdmin(formData.username, adminData);
+        response = await adminService.updateAdmin(formData.username, adminData);
       } else {
         // Create new admin - include username in the payload
-        response = await createAdmin({
+        response = await adminService.createAdmin({
           ...adminData,
           username: formData.username,
         });

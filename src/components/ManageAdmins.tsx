@@ -6,7 +6,7 @@ import { Edit } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import toast from 'react-hot-toast';
 import CreateAdmin from './CreateAdmin';
-import { deleteAdmin, getAdminByUsername, getAllAdmins } from '@/utils/services';
+import { adminService } from '@/utils/services';
 import DataTable from './DataTable';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 
@@ -28,7 +28,7 @@ export default function ManageAdmins() {
   const fetchAdmins = async () => {
     setIsLoading(true);
     try {
-      const res = await getAllAdmins();
+      const res = await adminService.getAllAdmins();
       if (res?.status) {
         console.log(res);
         setAdminData(res.data.admins);
@@ -49,7 +49,7 @@ export default function ManageAdmins() {
 
   const handleDelete = async (username: string) => {
     try {
-      const res = await deleteAdmin(username);
+      const res = await adminService.deleteAdmin(username);
       if (res.status) {
         setAdminData((prev) => prev.filter((item) => item.username !== username));
         toast.success(res.message);
@@ -63,7 +63,7 @@ export default function ManageAdmins() {
 
   const handleEdit = async (username: string) => {
     try {
-      const res = await getAdminByUsername(username);
+      const res = await adminService.getAdminByUsername(username);
       if (res.status) {
         setAdminByUsername(res.data.admin);
         toast.success(res.message);
@@ -133,7 +133,7 @@ export default function ManageAdmins() {
             />
 
             <Button
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 text-white"
               size="sm"
               title="Edit"
               onClick={() => handleEdit(row.original.username)}

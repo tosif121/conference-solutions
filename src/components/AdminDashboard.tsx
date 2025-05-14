@@ -7,7 +7,7 @@ import { Mic, PhoneCall, Folder, Activity, Edit } from 'lucide-react';
 import CreateConferenceModal from './CreateConferenceModal';
 import WelcomeAudioModal from './WelcomeAudioModal';
 import DataTable from './DataTable';
-import { getAllConferences } from '@/utils/services';
+import { conferenceService } from '@/utils/services';
 import toast from 'react-hot-toast';
 import moment from 'moment';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
@@ -16,7 +16,20 @@ import DateRangePicker from './DateRangePicker';
 
 export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
-  const [conferencesData, setConferencesData] = useState([]);
+  interface Conference {
+    _id: string;
+    hostNumber: string;
+    adminUser: string;
+    dialedNumber: string;
+    numberOfGuests: number;
+    status: string;
+    conference: string;
+    type: string;
+    answerTime: string | null;
+    hangupTime: string | null;
+  }
+
+  const [conferencesData, setConferencesData] = useState<Conference[]>([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -41,16 +54,11 @@ export default function AdminDashboard() {
   const fetchConferences = async () => {
     setIsLoading(true);
 
-    const payload = {
-      startDate: startDate,
-      endDate: endDate,
-    };
-
     try {
-      const res = await getAllConferences(payload);
+      const res = await conferenceService.getAllConferences();
       if (res?.status) {
-        console.log('Conferences data:', res);
-        setConferencesData(res.data.liveConfCalls);
+        console.log(res.data);
+        setConferencesData(res.data);
       } else {
         toast.error(res.message || 'Failed to fetch conferences');
       }
@@ -76,6 +84,34 @@ export default function AdminDashboard() {
       setEndDate(formattedEndDate);
 
       // The fetchConferences will be triggered by the useEffect that depends on startDate and endDate
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await conferenceService.deleteConference(id);
+      if (res.status) {
+        setConferencesData((prev) => prev.filter((item) => item._id !== id));
+        toast.success(res.message);
+      } else {
+        toast.error(res.message || 'Failed to delete Conferences');
+      }
+    } catch (err) {
+      toast.error('Something went wrong while deleting');
+    }
+  };
+
+  const handleEdit = async (username: string) => {
+    try {
+      const res = await conferenceService.getConferenceById(username);
+      if (res.status) {
+        // setAdminByUsername(res.data.admin);
+        toast.success(res.message);
+      } else {
+        toast.error(res.message || 'Failed to fetch administrator details');
+      }
+    } catch (err) {
+      toast.error('Something went wrong while fetching administrator details');
     }
   };
 
@@ -252,18 +288,27 @@ export default function AdminDashboard() {
         id: 'actions',
         header: () => 'Actions',
         disableSorting: true,
-        cell: ({ row }: { row: { original: { username: string } } }) => (
+        cell: ({
+          row,
+        }: {
+          row: {
+            original: {
+              _id(_id: any): void;
+              id: string;
+            };
+          };
+        }) => (
           <div className="flex gap-x-4">
             <DeleteConfirmationModal
-              onDelete={() => handleDelete(row.original.username)}
-              itemName={`administrator "${row.original.username}"`}
+              onDelete={() => handleDelete(row.original._id as unknown as string)}
+              itemName={`Conference`}
             />
 
             <Button
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 text-white"
               size="sm"
               title="Edit"
-              onClick={() => handleEdit(row.original.username)}
+              onClick={() => handleEdit(row.original._id as unknown as string)}
             >
               <Edit className="h-4 w-4" />
             </Button>
@@ -377,11 +422,4 @@ export default function AdminDashboard() {
       </Card>
     </div>
   );
-}
-function handleDelete(username: any): void {
-  throw new Error('Function not implemented.');
-}
-
-function handleEdit(username: any): void {
-  throw new Error('Function not implemented.');
 }

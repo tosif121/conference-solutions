@@ -9,7 +9,7 @@ import { Eye, EyeOff, Lock, User, Shield, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
-import { adminLogin } from '@/utils/services';
+import { authService } from '@/utils/services';
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -48,7 +48,7 @@ export default function AdminLogin() {
 
     try {
       // Call the actual API endpoint
-      const response = await adminLogin({ username, password });
+      const response = await authService.adminLogin({ username, password });
 
       if (response.status) {
         // Success - store token in cookie

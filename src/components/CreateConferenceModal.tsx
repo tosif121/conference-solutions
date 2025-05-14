@@ -8,8 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import toast from 'react-hot-toast';
-import { Calendar, Plus, Trash2, FileAudio, X } from 'lucide-react';
-import { createConference } from '@/utils/services';
+import { Calendar, Plus, Trash2, FileAudio, X, Clock } from 'lucide-react';
+import { conferenceService } from '@/utils/services';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 // Define types
 interface Host {
@@ -38,6 +40,7 @@ interface FormData {
   guestPin: string;
   isScheduled: boolean;
   scheduledAt: string;
+  scheduledDate: Date | null;
 }
 
 interface FormErrors {
@@ -67,6 +70,7 @@ export default function CreateConferenceModal() {
     guestPin: '',
     isScheduled: false,
     scheduledAt: '',
+    scheduledDate: null,
   });
 
   const validateForm = (): boolean => {
@@ -120,10 +124,10 @@ export default function CreateConferenceModal() {
 
     // Date validation only if scheduling is enabled
     if (formData.isScheduled) {
-      if (!formData.scheduledAt) {
+      if (!formData.scheduledDate) {
         newErrors.scheduledAt = 'Schedule time is required';
       } else {
-        const scheduledTime = new Date(formData.scheduledAt).getTime();
+        const scheduledTime = formData.scheduledDate.getTime();
         const now = new Date().getTime();
 
         if (scheduledTime <= now) {
@@ -150,6 +154,12 @@ export default function CreateConferenceModal() {
     const formatPhone = (num: string) => (num ? `+91${num}` : '');
 
     try {
+      // Update the scheduledAt to use the DatePicker value
+      let scheduledAtTimestamp;
+      if (formData.isScheduled && formData.scheduledDate) {
+        scheduledAtTimestamp = formData.scheduledDate.getTime();
+      }
+
       // Simulate API call
       const payload = {
         conferenceName: formData.conferenceName,
@@ -172,10 +182,10 @@ export default function CreateConferenceModal() {
         pinProtected: formData.pinProtected,
         hostPin: formData.pinProtected ? formData.hostPin : undefined,
         guestPin: formData.pinProtected ? formData.guestPin : undefined,
-        scheduledAt: formData.isScheduled ? new Date(formData.scheduledAt).getTime() : undefined,
+        scheduledAt: scheduledAtTimestamp,
       };
 
-      const response = await createConference(payload);
+      const response = await conferenceService.createConference(payload);
 
       if (response.status) {
         toast.success(response.message);
@@ -206,6 +216,7 @@ export default function CreateConferenceModal() {
       guestPin: '',
       isScheduled: false,
       scheduledAt: '',
+      scheduledDate: null,
     });
     setErrors({});
   };
@@ -285,6 +296,21 @@ export default function CreateConferenceModal() {
     }
     return audioId;
   };
+
+  // Date picker custom input
+  const CustomDatePickerInput = ({ value, onClick }: { value?: string; onClick?: () => void }) => (
+    <div className="relative" onClick={onClick}>
+      <Input
+        value={value}
+        className={`pl-10 cursor-pointer ${errors.scheduledAt ? 'border-red-500' : ''}`}
+        readOnly
+        placeholder="Select date and time"
+      />
+      <div className="absolute left-0 top-0 h-full flex items-center pl-3">
+        <Calendar className="h-4 w-4 text-gray-500" />
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -494,7 +520,7 @@ export default function CreateConferenceModal() {
                           ...formData,
                           isScheduled: val,
                           // If turning off scheduling, clear any validation errors
-                          scheduledAt: val ? formData.scheduledAt : '',
+                          scheduledDate: val ? formData.scheduledDate : null,
                         });
                         if (!val) {
                           // Clear scheduling errors when turning off
@@ -560,28 +586,33 @@ export default function CreateConferenceModal() {
                   </div>
                 </div>
               </div>
-              {/* Conditional Schedule Time Field */}
+
+              {/* Conditional Schedule Time Field with DatePicker */}
               {formData.isScheduled && (
-                <div className="space-y-2 p-4 bg-slate-50 rounded-md">
+                <div className="space-y-2 p-4 bg-primary-foreground rounded-md">
                   <Label htmlFor="scheduledAt" className="flex items-center space-x-1">
                     <span>Scheduled Time</span>
                     <span className="text-red-500">*</span>
                   </Label>
-                  <div className="relative">
-                    <Input
-                      id="scheduledAt"
-                      type="datetime-local"
-                      value={formData.scheduledAt}
-                      onChange={(e) => setFormData({ ...formData, scheduledAt: e.target.value })}
-                      className={`pl-10 ${errors.scheduledAt ? 'border-red-500' : ''}`}
-                    />
-                    <Calendar className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
-                  </div>
+                  <DatePicker
+                    selected={formData.scheduledDate}
+                    onChange={(date) => setFormData({ ...formData, scheduledDate: date })}
+                    showTimeSelect
+                    timeFormat="HH:mm"
+                    timeIntervals={15}
+                    dateFormat="MMMM d, yyyy h:mm aa"
+                    minDate={new Date()}
+                    placeholderText="Select date and time"
+                    customInput={<CustomDatePickerInput />}
+                    popperPlacement="bottom-start"
+                    className="w-full"
+                  />
                   {errors.scheduledAt && <p className="text-red-500 text-sm">{errors.scheduledAt}</p>}
                 </div>
               )}
+
               {formData.playWelcomeAudio && (
-                <div className="mt-2 p-4 bg-gray-50 rounded-md">
+                <div className="mt-2 p-4 bg-primary-foreground rounded-md">
                   <div className="space-y-4">
                     <Label htmlFor="welcomeAudioId" className="flex items-center space-x-1">
                       <span>Welcome Audio</span>
