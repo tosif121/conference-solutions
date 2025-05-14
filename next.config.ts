@@ -6,6 +6,7 @@ const nextConfig = {
   },
   env: {
     BASE_API_URL: 'https://conf.iotcom.io/api/',
+    
     // Authentication Endpoints
     LOGIN: 'superadmin/login',
     ADMIN_LOGIN: 'admin/login',
