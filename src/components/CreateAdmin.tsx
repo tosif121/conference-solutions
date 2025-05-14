@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { createAdmin, updateAdmin } from '@/utils/services';
 
 interface Admin {
-  admin: any;
   username: string;
   name: string;
   email: string;
@@ -53,18 +52,18 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
 
   useEffect(() => {
     if (adminByUsername) {
-      const rawPhone = adminByUsername.admin.phone.startsWith('+91')
-        ? adminByUsername.admin.phone.substring(3)
-        : adminByUsername.admin.phone;
+      const rawPhone = adminByUsername.phone.startsWith('+91')
+        ? adminByUsername.phone.substring(3)
+        : adminByUsername.phone;
 
       setFormData({
-        username: adminByUsername.admin.username || '',
-        name: adminByUsername.admin.name || '',
-        email: adminByUsername.admin.email || '',
-        password: adminByUsername.admin.password || '',
-        phone: adminByUsername.admin.phone || '',
+        username: adminByUsername.username || '',
+        name: adminByUsername.name || '',
+        email: adminByUsername.email || '',
+        password: adminByUsername.password || '',
+        phone: adminByUsername.phone || '',
         rawPhone: rawPhone,
-        assignedDids: adminByUsername.admin.assignedDids || [],
+        assignedDids: adminByUsername.assignedDids || [],
       });
       setIsEditMode(true);
     } else {

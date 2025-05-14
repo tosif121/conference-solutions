@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Trash } from 'lucide-react';
 
-export default function DeleteConfirmationModal({ onDelete, itemName = 'item' }) {
+export default function DeleteConfirmationModal({ onDelete, itemName = 'item' }: { onDelete: (event?: React.MouseEvent<HTMLButtonElement>) => void; itemName?: string }) {
   const [open, setOpen] = useState(false);
 
   const handleDelete = () => {
