@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, FileAudio, X, Pause, Play, Check } from 'lucide-react';
-import { conferenceService } from '@/utils/services';
+import { audioService, conferenceService } from '@/utils/services';
+import moment from 'moment';
 
 // Define types
 interface Host {
@@ -24,6 +25,8 @@ interface Guest {
 }
 
 interface AudioFile {
+  createdAt: string | Date;
+  fileName: string;
   id: string;
   name: string;
   size: string;
@@ -104,31 +107,33 @@ export default function CreateConferenceModal({
     guestMute: false,
     announcementEnabled: false,
   });
-  const [audioFiles, setAudioFiles] = useState<AudioFile[]>([
-    {
-      id: 'audio_welcome_standard_123456',
-      name: 'Welcome Standard',
-      size: '320 KB',
-      duration: '0:12',
-      dateUploaded: '2025-04-15',
-    },
-    {
-      id: 'audio_conference_intro_789012',
-      name: 'Conference Introduction',
-      size: '450 KB',
-      duration: '0:23',
-      dateUploaded: '2025-04-20',
-    },
-    {
-      id: 'audio_meeting_start_345678',
-      name: 'Meeting Start',
-      size: '280 KB',
-      duration: '0:15',
-      dateUploaded: '2025-05-01',
-    },
-  ]);
+  const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
   const [selectedAudio, setSelectedAudio] = useState<string>('');
   const audioTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      fetchAudioFiles();
+    }
+  }, [open]);
+
+  const fetchAudioFiles = async () => {
+    setIsSubmitting(true);
+    try {
+      // Use the audioService to get the list of audio files
+      const response = await audioService.getAudioList();
+      if (response.status) {
+        setAudioFiles(response.data.audioList);
+      } else {
+        toast.error(response.message || 'Failed to fetch audio files');
+      }
+    } catch (error) {
+      console.error('Error fetching audio files:', error);
+      toast.error('Failed to fetch audio files');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Effect to populate form data when editConference changes
   useEffect(() => {
@@ -355,7 +360,9 @@ export default function CreateConferenceModal({
     });
   };
 
-  const filteredAudioFiles = audioFiles.filter((audio) => audio.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredAudioFiles = audioFiles.filter((audio) =>
+    audio.fileName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const sortedAudioFiles = [...filteredAudioFiles].sort((a, b) => {
     switch (sortBy) {
@@ -607,7 +614,7 @@ export default function CreateConferenceModal({
                         <option value="">Select arrival music (optional)</option>
                         {audioFiles.map((audio) => (
                           <option key={audio.id} value={audio.id}>
-                            {audio.name} ({audio.duration})
+                            {audio.fileName}
                           </option>
                         ))}
                       </select>
@@ -763,17 +770,13 @@ export default function CreateConferenceModal({
                             <div className="flex items-center gap-3">
                               <FileAudio className="text-primary h-5 w-5" />
                               <div className="w-full overflow-hidden">
-                                <p className="font-medium text-sm truncate">{audio.name}</p>
+                                <p className="font-medium text-sm truncate">{audio.fileName}</p>
                                 <div className="flex text-xs text-slate-500 gap-2">
-                                  <span>{audio.size}</span>
-                                  <span>•</span>
-                                  <span>{audio.duration}</span>
-                                  {audio.dateUploaded && (
-                                    <>
-                                      <span>•</span>
-                                      <span>{audio.dateUploaded}</span>
-                                    </>
-                                  )}
+                                  {/* <span>{audio.size}</span>
+                                                       <span>•</span>
+                                                       <span>{audio.duration}</span>
+                                                       <span>•</span> */}
+                                  <span>{moment(audio.createdAt).format('DD-MM-YYYY')}</span>
                                 </div>
                               </div>
                             </div>

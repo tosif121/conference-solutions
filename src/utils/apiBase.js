@@ -62,7 +62,7 @@ axiosInstance.interceptors.response.use(
     const status = error?.response?.status;
 
     // Check if error status is one of the critical ones
-    if ([400, 403, 500, 502].includes(status)) {
+    if ([400, 403, 502].includes(status)) {
       // Check current path before redirecting
       const currentPath = window.location.pathname;
       const loginPaths = ['/super-admin/login', '/admin/login', '/login'];
@@ -158,4 +158,4 @@ function errorResponse(response) {
   };
 }
 
-export { fetcher, filesFetch, axiosInstance };
+export { fetcher, filesFetch };
