@@ -43,12 +43,6 @@ export default function AdminDashboard() {
   const [conferencesData, setConferencesData] = useState<Conference[]>([]);
   const [open, setOpen] = useState<boolean>(false);
   const [editConference, setEditConference] = useState<Conference | undefined>(undefined);
-  const [stats, setStats] = useState({
-    total: 0,
-    live: 0,
-    audioFiles: 18, // Hard-coded for now, update if you have API for this
-    didsAssigned: 5, // Hard-coded for now, update if you have API for this
-  });
 
   useEffect(() => {
     fetchConferences();
@@ -81,15 +75,6 @@ export default function AdminDashboard() {
       if (res.status) {
         setConferencesData((prev) => prev.filter((item) => item.id !== id));
         toast.success(res.message || 'Conference deleted successfully');
-
-        // Update stats after deletion
-        setStats((prev) => ({
-          ...prev,
-          total: prev.total - 1,
-          live: conferencesData.find((conf) => conf.id === id && (conf.status === 'active' || conf.status === 'live'))
-            ? prev.live - 1
-            : prev.live,
-        }));
       } else {
         toast.error(res.message || 'Failed to delete Conference');
       }

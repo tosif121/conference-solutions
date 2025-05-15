@@ -1,18 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -21,83 +18,255 @@ import {
   Folder,
   Activity,
   MoreVertical,
-  Calendar,
   Users,
   Clock,
-  Plus,
   RefreshCw,
-  Search,
-  Filter,
-  Download,
-  BarChart4,
+  PauseCircle,
+  PhoneOff,
+  VolumeX,
+  Volume2,
 } from 'lucide-react';
-import CreateConferenceModal from './CreateConferenceModal';
+import { conferenceCallService, channelService } from '@/utils/services';
+import toast from 'react-hot-toast';
+import { Input } from '@/components/ui/input';
+import moment from 'moment';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [conferencesData, setConferencesData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(4);
+  const [refreshIntervalInput, setRefreshIntervalInput] = useState('4');
+  const [isPaused, setIsPaused] = useState(false);
+  const [stats, setStats] = useState({
+    totalConferences: 0,
+    liveConferences: 0,
+    audioFiles: 18, // Static for now
+    didsAssigned: 5, // Static for now
+  });
 
-  // Conference data
-  const recentConferences = [
-    {
-      id: 1,
-      name: 'Team Standup Call',
-      date: 'Today, 10:30 AM',
-      status: 'Completed',
-      participants: 12,
-      duration: '45 min',
-    },
-    {
-      id: 2,
-      name: 'Sales Review Meeting',
-      date: 'Yesterday, 4:00 PM',
-      status: 'Completed',
-      participants: 8,
-      duration: '1h 15min',
-    },
-    {
-      id: 3,
-      name: 'Product Demo',
-      date: 'Yesterday, 2:30 PM',
-      status: 'Completed',
-      participants: 15,
-      duration: '30 min',
-    },
-    {
-      id: 4,
-      name: 'Client Demo',
-      date: '2 Days Ago, 1:15 PM',
-      status: 'Completed',
-      participants: 5,
-      duration: '45 min',
-    },
-    { id: 5, name: 'Board Meeting', date: '3 Days Ago, 3:00 PM', status: 'Completed', participants: 7, duration: '2h' },
-  ];
+  useEffect(() => {
+    fetchLiveConferenceCalls();
 
-  // Upcoming conferences
-  const upcomingConferences = [
-    { id: 6, name: 'Marketing Strategy', date: 'Tomorrow, 11:00 AM', status: 'Scheduled', participants: 6 },
-    { id: 7, name: 'Project Kickoff', date: 'May 13, 2:00 PM', status: 'Scheduled', participants: 12 },
-    { id: 8, name: 'Quarterly Review', date: 'May 15, 9:00 AM', status: 'Scheduled', participants: 18 },
-  ];
+    let intervalId;
+    if (!isPaused) {
+      intervalId = setInterval(() => {
+        fetchLiveConferenceCalls();
+      }, refreshInterval * 1000);
+    }
 
-  // Active conferences
-  const activeConferences = [
-    { id: 9, name: 'Customer Support', startTime: '09:30 AM', duration: '45 min', participants: 4, progress: 65 },
-    { id: 10, name: 'Engineering Sync', startTime: '10:15 AM', duration: '30 min', participants: 8, progress: 40 },
-    { id: 11, name: 'Sales Call', startTime: '10:00 AM', duration: '1h', participants: 3, progress: 25 },
-  ];
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [refreshInterval, isPaused]);
+
+  const fetchLiveConferenceCalls = async () => {
+    setIsLoading(true);
+
+    try {
+      const res = await conferenceCallService.getLiveConferenceCalls();
+      if (res?.status) {
+        // Assuming the API returns an array directly or in a nested property
+        let conferences = Array.isArray(res.data) ? res.data : res.data.liveConfCalls || [];
+
+        // Process conferences with momentjs
+        conferences = conferences.map((conference) => {
+          // Convert timestamps to moment objects if they exist
+          if (conference.startTime) {
+            conference.momentStartTime = moment(conference.startTime);
+          }
+          return conference;
+        });
+
+        setConferencesData(conferences);
+
+        // Update stats
+        setStats((prev) => ({
+          ...prev,
+          totalConferences: 42, // This could be from API in real app
+          liveConferences: conferences.length,
+        }));
+      } else {
+        toast.error(res.message || 'Failed to fetch conferences');
+      }
+    } catch (err) {
+      console.error('Error fetching conferences:', err);
+      toast.error('Error fetching conferences');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRefreshIntervalChange = (e) => {
+    setRefreshIntervalInput(e.target.value);
+  };
+
+  const applyRefreshInterval = () => {
+    const value = parseInt(refreshIntervalInput);
+    if (!isNaN(value) && value > 0) {
+      setRefreshInterval(value);
+      toast.success(`Refresh interval set to ${value} seconds`);
+    } else {
+      toast.error('Please enter a valid positive number');
+      setRefreshIntervalInput(refreshInterval.toString());
+    }
+  };
+
+  const togglePauseRefresh = () => {
+    setIsPaused(!isPaused);
+    toast.success(isPaused ? 'Auto-refresh resumed' : 'Auto-refresh paused');
+  };
+
+  const handleManualRefresh = () => {
+    fetchLiveConferenceCalls();
+    toast.success('Data refreshed');
+  };
+
+  // Calculate conference duration and progress using moment.js
+  const calculateConfDetails = (conference) => {
+    const startTime = conference.momentStartTime || moment();
+    const now = moment();
+    const durationMinutes = now.diff(startTime, 'minutes');
+    const durationSeconds = now.diff(startTime, 'seconds') % 60;
+
+    // Format as mm:ss
+    const duration = `${durationMinutes.toString().padStart(2, '0')}:${durationSeconds.toString().padStart(2, '0')}`;
+
+    // Assuming calls last around 30 minutes, calculate progress
+    const progress = Math.min(Math.round((now.diff(startTime, 'seconds') / (30 * 60)) * 100), 100);
+
+    return { duration, progress };
+  };
+
+  // Format timestamp using moment.js
+  const formatTime = (timestamp) => {
+    if (!timestamp) return '';
+    return moment(timestamp).format('h:mm A');
+  };
+
+  // Handle muting/unmuting for guests
+  const handleToggleChannelMute = async (conference, channelId, isMuted) => {
+    try {
+      // Get the host channel ID from the conference data
+      const hostChannelId = conference.hostChannel;
+
+      if (!hostChannelId) {
+        toast.error('Host channel information not available');
+        return;
+      }
+
+      const muteParams = {
+        mute: !isMuted,
+        hostChannelId: hostChannelId,
+      };
+
+      await channelService.toggleChannelMute(channelId, muteParams);
+      toast.success(`${isMuted ? 'Unmuted' : 'Muted'} participant successfully`);
+      // Refresh data to show updated state
+      fetchLiveConferenceCalls();
+    } catch (error) {
+      console.error('Error toggling mute status:', error);
+      toast.error('Failed to change mute status');
+    }
+  };
+
+  // Handle hanging up a channel
+  const handleHangupChannel = async (channelId, participantName) => {
+    try {
+      await channelService.hangupChannel(channelId);
+      toast.success(`Disconnected ${participantName} from the call`);
+      // Refresh data to show updated state
+      fetchLiveConferenceCalls();
+    } catch (error) {
+      console.error('Error hanging up channel:', error);
+      toast.error('Failed to disconnect participant');
+    }
+  };
+
+  // Handle toggling mute for all guests in a conference
+  const handleToggleConferenceMute = async (conference) => {
+    try {
+      const answeredGuests = conference.guestChannels.filter((guest) => guest.status === 'answered');
+
+      // Get the host channel ID from the conference data
+      const hostChannelId = conference.hostChannel?.channelId;
+
+      if (!hostChannelId) {
+        toast.error('Host channel information not available');
+        return;
+      }
+
+      // Create an array of promises for each mute operation
+      const mutePromises = answeredGuests.map((guest) => {
+        const muteParams = {
+          mute: !conference.isGuestMuted, // Reverse current state
+          hostChannelId: hostChannelId,
+        };
+        return channelService.toggleChannelMute(guest.channelId, muteParams);
+      });
+
+      // Wait for all operations to complete
+      await Promise.all(mutePromises);
+
+      toast.success(
+        `${conference.isGuestMuted ? 'Unmuted' : 'Muted'} all guests in conference ${conference.conference}`
+      );
+      fetchLiveConferenceCalls();
+    } catch (error) {
+      console.error('Error toggling conference mute status:', error);
+      toast.error('Failed to change conference mute status');
+    }
+  };
+
+  // Function to get the host name from conference data
+  const getHostName = (conference) => {
+    return conference.hostChannel?.name || 'Unknown Host';
+  };
+
+  // Function to check if a conference has a valid host
+  const hasValidHost = (conference) => {
+    return conference.hostChannel && conference.hostChannel.status === 'answered';
+  };
 
   return (
     <div className="container mx-auto py-6 space-y-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Admin Dashboard</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your conferences and monitor system activity</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
+            Manage your conferences and monitor system activity
+            {!isPaused && (
+              <span className="ml-2 text-green-500 text-sm">• Auto-refreshing every {refreshInterval}s</span>
+            )}
+            {isPaused && <span className="ml-2 text-orange-500 text-sm">• Auto-refresh paused</span>}
+          </p>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button variant="outline" size="sm" className="flex items-center gap-1">
-            <RefreshCw className="w-4 h-4" />
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min="1"
+              value={refreshIntervalInput}
+              onChange={handleRefreshIntervalChange}
+              className="w-20 h-9 bg-white dark:bg-slate-800"
+              onKeyDown={(e) => e.key === 'Enter' && applyRefreshInterval()}
+            />
+            <span className="text-sm text-slate-500">seconds</span>
+            <Button variant="outline" size="sm" onClick={applyRefreshInterval}>
+              Apply
+            </Button>
+          </div>
+          <Button variant="outline" size="icon" className="h-9 w-9" onClick={togglePauseRefresh}>
+            {isPaused ? <RefreshCw className="w-4 h-4" /> : <PauseCircle className="w-4 h-4" />}
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="flex items-center gap-1"
+            onClick={handleManualRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
         </div>
@@ -113,7 +282,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-muted-foreground">Total Conferences</p>
               <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">42</h2>
+                <h2 className="text-2xl font-bold">{stats.totalConferences}</h2>
                 <span className="text-xs text-green-500">+12% ↑</span>
               </div>
             </div>
@@ -128,7 +297,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-muted-foreground">Live Conferences</p>
               <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">3</h2>
+                <h2 className="text-2xl font-bold">{stats.liveConferences}</h2>
                 <Badge
                   variant="outline"
                   className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
@@ -148,7 +317,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-muted-foreground">Audio Files</p>
               <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">18</h2>
+                <h2 className="text-2xl font-bold">{stats.audioFiles}</h2>
                 <span className="text-xs text-orange-500">+3 today</span>
               </div>
             </div>
@@ -163,7 +332,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-muted-foreground">DIDs Assigned</p>
               <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">5</h2>
+                <h2 className="text-2xl font-bold">{stats.didsAssigned}</h2>
                 <span className="text-xs text-blue-500">of 10 available</span>
               </div>
             </div>
@@ -171,314 +340,243 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Main content tabs */}
-      <Tabs defaultValue="overview" className="space-y-4" onValueChange={setActiveTab}>
-        <div className="flex justify-between items-center">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="active">Active Calls</TabsTrigger>
-            <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-            <TabsTrigger value="recordings">Recordings</TabsTrigger>
-          </TabsList>
-
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="flex items-center gap-1">
-              <Search className="w-4 h-4" />
-              <span className="hidden sm:inline">Search</span>
-            </Button>
-            <Button variant="outline" size="sm" className="flex items-center gap-1">
-              <Filter className="w-4 h-4" />
-              <span className="hidden sm:inline">Filter</span>
-            </Button>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-medium flex items-center gap-2">
+              <Activity className="w-5 h-5 text-green-500" />
+              Live Conferences
+            </CardTitle>
+            <Badge className="bg-green-500">{conferencesData.length} Active</Badge>
           </div>
-        </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading && <div className="text-center py-4">Loading conference data...</div>}
 
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
-          {/* Active conferences */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-medium flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-green-500" />
-                  Live Conferences
-                </CardTitle>
-                <Badge className="bg-green-500">3 Active</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {activeConferences.map((conference) => (
-                  <div key={conference.id} className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="w-3 h-3 bg-green-500 rounded-full absolute -top-1 -right-1 animate-pulse"></div>
-                          <Avatar className="w-10 h-10 border-2 border-green-200">
-                            <AvatarFallback className="bg-green-100 text-green-800">
-                              {conference.name.slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
-                        <div>
-                          <h3 className="font-medium">{conference.name}</h3>
-                          <div className="flex items-center text-xs text-muted-foreground gap-3">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> {conference.startTime}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" /> {conference.participants} participants
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 mt-3 sm:mt-0">
-                        <Button size="sm" variant="secondary">
-                          Join
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>View Details</DropdownMenuItem>
-                            <DropdownMenuItem>End Call</DropdownMenuItem>
-                            <DropdownMenuItem>Add Participant</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-muted-foreground mt-3">
-                      <div className="flex-1">
-                        <div className="flex justify-between mb-1">
-                          <span>Progress</span>
-                          <span>{conference.progress}%</span>
-                        </div>
-                        <Progress value={conference.progress} className="h-2" />
-                      </div>
-                      <Badge variant="outline" className="w-fit">
-                        {conference.duration}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {!isLoading && conferencesData.length === 0 && (
+            <div className="text-center py-8 text-slate-500">No active conferences at the moment</div>
+          )}
 
-          {/* Recent conferences */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-medium flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-primary" />
-                  Recent Conferences
-                </CardTitle>
-                <Button variant="ghost" size="sm" className="flex items-center gap-1">
-                  <Download className="w-4 h-4" />
-                  <span>Export</span>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-900">
-                    <tr>
-                      <th className="py-3 px-4 text-left font-medium">Conference</th>
-                      <th className="py-3 px-4 text-left font-medium hidden sm:table-cell">Date</th>
-                      <th className="py-3 px-4 text-left font-medium hidden md:table-cell">Participants</th>
-                      <th className="py-3 px-4 text-left font-medium hidden md:table-cell">Duration</th>
-                      <th className="py-3 px-4 text-left font-medium">Status</th>
-                      <th className="py-3 px-4 text-right font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentConferences.map((conference, index) => (
-                      <tr key={conference.id} className={index !== recentConferences.length - 1 ? 'border-b' : ''}>
-                        <td className="py-3 px-4">{conference.name}</td>
-                        <td className="py-3 px-4 hidden sm:table-cell text-muted-foreground">{conference.date}</td>
-                        <td className="py-3 px-4 hidden md:table-cell text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Users className="w-4 h-4" />
-                            <span>{conference.participants}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 hidden md:table-cell text-muted-foreground">{conference.duration}</td>
-                        <td className="py-3 px-4">
-                          <Badge
-                            variant="outline"
-                            className="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
-                          >
-                            {conference.status}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>View Details</DropdownMenuItem>
-                              <DropdownMenuItem>Download Recording</DropdownMenuItem>
-                              <DropdownMenuItem>View Transcript</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            {conferencesData.map((conference) => {
+              const { duration, progress } = calculateConfDetails(conference);
+              const answeredParticipants = conference.guestChannels.filter((g) => g.status === 'answered').length;
+              const totalParticipants = conference.guestChannels.length;
+              const hostName = getHostName(conference);
+              const isHostActive = hasValidHost(conference);
 
-          {/* Upcoming conferences */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-medium flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-blue-500" />
-                  Upcoming Conferences
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {upcomingConferences.map((conference) => (
-                    <div key={conference.id} className="flex items-center justify-between p-3 rounded-lg border">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-9 h-9">
-                          <AvatarFallback className="bg-blue-100 text-blue-800">
-                            {conference.name.slice(0, 2)}
+              return (
+                <div key={conference.bridge} className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <div className="w-3 h-3 bg-green-500 rounded-full absolute -top-1 -right-1 animate-pulse"></div>
+                        <Avatar className="w-10 h-10 border-2 border-green-200">
+                          <AvatarFallback className="bg-green-100 text-green-800">
+                            {conference.conference.slice(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <div>
-                          <h3 className="font-medium">{conference.name}</h3>
-                          <div className="flex items-center text-xs text-muted-foreground gap-2">
-                            <span>{conference.date}</span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" /> {conference.participants}
-                            </span>
-                          </div>
+                      </div>
+                      <div>
+                        <h3 className="font-medium">{conference.conference}</h3>
+                        <div className="flex items-center text-xs text-muted-foreground gap-3">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> {formatTime(conference.startTime)}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3" /> {answeredParticipants}/{totalParticipants} connected
+                          </span>
                         </div>
                       </div>
-                      <Button size="sm" variant="outline">
-                        Prepare
-                      </Button>
                     </div>
-                  ))}
-                </div>
-                <Button variant="ghost" className="w-full mt-4">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  View Full Schedule
-                </Button>
-              </CardContent>
-            </Card>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-3 sm:mt-0">
+                      <Badge
+                        variant="outline"
+                        className={`${
+                          conference.isGuestMuted ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                        }`}
+                      >
+                        {conference.isGuestMuted ? 'Guests Muted' : 'Guests Unmuted'}
+                      </Badge>
+                      <Badge
+                        variant={isHostActive ? 'outline' : 'secondary'}
+                        className={isHostActive ? 'bg-blue-100 text-blue-800' : ''}
+                      >
+                        Host: {hostName}
+                      </Badge>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-medium flex items-center gap-2">
-                  <BarChart4 className="w-5 h-5 text-violet-500" />
-                  System Health
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between mb-1 text-sm">
-                      <span>CPU Usage</span>
-                      <span>28%</span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {/* <DropdownMenuItem>View Details</DropdownMenuItem>
+                          <DropdownMenuItem>End Call</DropdownMenuItem>
+                          <DropdownMenuItem>Add Participant</DropdownMenuItem> */}
+                          <DropdownMenuItem
+                            onClick={() => handleToggleConferenceMute(conference)}
+                            disabled={!isHostActive}
+                          >
+                            {conference.isGuestMuted ? 'Unmute All Guests' : 'Mute All Guests'}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    <Progress value={28} className="h-2" />
                   </div>
-                  <div>
-                    <div className="flex justify-between mb-1 text-sm">
-                      <span>Memory Usage</span>
-                      <span>45%</span>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-muted-foreground mt-3">
+                    <div className="flex-1">
+                      <div className="flex justify-between mb-1">
+                        <span>Call Progress</span>
+                        <span>{progress}%</span>
+                      </div>
+                      <Progress value={progress} className="h-2" />
                     </div>
-                    <Progress value={45} className="h-2" />
+                    <Badge variant="outline" className="w-fit">
+                      {duration}
+                    </Badge>
                   </div>
-                  <div>
-                    <div className="flex justify-between mb-1 text-sm">
-                      <span>Storage</span>
-                      <span>62%</span>
+
+                  {/* Host information */}
+                  {conference.hostChannel && (
+                    <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+                      <h4 className="text-sm font-medium mb-2">Host</h4>
+                      <div className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="w-6 h-6">
+                            <AvatarFallback
+                              className={`text-xs ${
+                                conference.hostChannel.status === 'answered'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : conference.hostChannel.status === 'dialing'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}
+                            >
+                              {conference.hostChannel.name?.slice(0, 1).toUpperCase() || 'H'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm font-medium">{conference.hostChannel.name || 'Unknown Host'}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${
+                              conference.hostChannel.status === 'answered'
+                                ? 'bg-green-100 text-green-800'
+                                : conference.hostChannel.status === 'dialing'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}
+                          >
+                            {conference.hostChannel.status}
+                          </Badge>
+                          {conference.hostChannel.status === 'answered' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() =>
+                                handleHangupChannel(conference.hostChannel.channelId, conference.hostChannel.name)
+                              }
+                            >
+                              <PhoneOff className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <Progress value={62} className="h-2" />
-                  </div>
-                  <div>
-                    <div className="flex justify-between mb-1 text-sm">
-                      <span>Network</span>
-                      <span>15%</span>
+                  )}
+
+                  {/* Participants */}
+                  <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+                    <h4 className="text-sm font-medium mb-2">Participants</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {conference.guestChannels.map((guest) => (
+                        <div
+                          key={guest.channelId}
+                          className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Avatar className="w-6 h-6">
+                              <AvatarFallback
+                                className={`text-xs ${
+                                  guest.status === 'answered'
+                                    ? 'bg-green-100 text-green-800'
+                                    : guest.status === 'dialing'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                {guest.name?.slice(0, 1).toUpperCase() || 'G'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm font-medium">{guest.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${
+                                guest.status === 'answered'
+                                  ? 'bg-green-100 text-green-800'
+                                  : guest.status === 'dialing'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}
+                            >
+                              {guest.status}
+                            </Badge>
+                            {guest.status === 'answered' && (
+                              <div className="flex items-center gap-1">
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    guest.isMuted ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                  }`}
+                                >
+                                  {guest.isMuted ? 'Muted' : 'Unmuted'}
+                                </Badge>
+                                {isHostActive && (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() =>
+                                        handleToggleChannelMute(conference, guest.channelId, guest.isMuted)
+                                      }
+                                    >
+                                      {guest.isMuted ? (
+                                        <Volume2 className="h-3 w-3" />
+                                      ) : (
+                                        <VolumeX className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() => handleHangupChannel(guest.channelId, guest.name)}
+                                    >
+                                      <PhoneOff className="h-3 w-3" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <Progress value={15} className="h-2" />
                   </div>
                 </div>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                  <div className="text-sm">
-                    <p className="font-medium">System Status</p>
-                    <p className="text-green-500 flex items-center gap-1">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      All Systems Operational
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm">
-                    View Details
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              );
+            })}
           </div>
-        </TabsContent>
-
-        {/* Active Calls Tab */}
-        <TabsContent value="active">
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Conference Calls</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Detailed information about currently active conference calls would appear here.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Scheduled Tab */}
-        <TabsContent value="scheduled">
-          <Card>
-            <CardHeader>
-              <CardTitle>Scheduled Conferences</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Calendar view and list of upcoming scheduled conferences would appear here.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Recordings Tab */}
-        <TabsContent value="recordings">
-          <Card>
-            <CardHeader>
-              <CardTitle>Conference Recordings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Library of all recorded conference calls and their transcripts would appear here.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

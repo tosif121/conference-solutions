@@ -20,7 +20,7 @@ export const authService = {
  */
 export const conferenceCallService = {
   // Get all live conference calls
-  getLiveConferenceCalls: (params = {}) => fetcher('GET', apiUrl + 'liveConf-calls', params),
+  getLiveConferenceCalls: (params = {}) => fetcher('GET', apiUrl + 'liveConf-calls'),
 
   // Get call data by date range
   getCallDataByDateRange: (dateRange) => fetcher('POST', apiUrl + 'confCalldetail', dateRange),
