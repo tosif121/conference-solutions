@@ -826,8 +826,8 @@ export default function CreateConferenceModal({
                   ? 'Updating...'
                   : 'Creating...'
                 : isEditMode
-                ? 'Update Admin'
-                : 'Create Admin'}
+                ? 'Update Conferences'
+                : 'Create Conferences'}
             </Button>
           </DialogFooter>
         </DialogContent>
