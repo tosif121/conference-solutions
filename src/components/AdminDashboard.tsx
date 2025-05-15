@@ -1,24 +1,12 @@
 'use client';
 
-import { SetStateAction, useEffect, useState } from 'react';
+import { SetStateAction, useEffect, useState, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import {
-  Mic,
-  PhoneCall,
-  Folder,
-  Activity,
-  Users,
-  Clock,
-  RefreshCw,
-  PauseCircle,
-  PhoneOff,
-  VolumeX,
-  Volume2,
-} from 'lucide-react';
+import { Mic, PhoneCall, Folder, Activity, Users, Clock, RefreshCw, PauseCircle, PhoneOff, MicOff } from 'lucide-react';
 import { conferenceCallService, channelService } from '@/utils/services';
 import toast from 'react-hot-toast';
 import { Input } from '@/components/ui/input';
@@ -61,6 +49,8 @@ function AdminDashboard() {
   const [refreshInterval, setRefreshInterval] = useState(4);
   const [refreshIntervalInput, setRefreshIntervalInput] = useState('4');
   const [isPaused, setIsPaused] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [stats, setStats] = useState({
     totalConferences: 0,
     liveConferences: 0,
@@ -68,13 +58,16 @@ function AdminDashboard() {
     didsAssigned: 5, // Static for now
   });
 
+  // Last successful data cache to prevent UI flickering
+  const [cachedData, setCachedData] = useState<Conference[]>([]);
+
   useEffect(() => {
     fetchLiveConferenceCalls();
 
     let intervalId: string | number | NodeJS.Timeout | undefined;
     if (!isPaused) {
       intervalId = setInterval(() => {
-        fetchLiveConferenceCalls();
+        fetchLiveConferenceCalls(true);
       }, refreshInterval * 1000);
     }
 
@@ -83,8 +76,15 @@ function AdminDashboard() {
     };
   }, [refreshInterval, isPaused]);
 
-  const fetchLiveConferenceCalls = async () => {
-    setIsLoading(true);
+  const fetchLiveConferenceCalls = async (isBackgroundRefresh = false) => {
+    // Only show loading state on initial load, not on background refreshes
+    if (!isBackgroundRefresh) {
+      setIsLoading(true);
+    }
+
+    if (isBackgroundRefresh) {
+      setIsRefreshing(true);
+    }
 
     try {
       const res = await conferenceCallService.getLiveConferenceCalls();
@@ -100,22 +100,35 @@ function AdminDashboard() {
           return conference;
         });
 
-        setConferencesData(conferences);
+        // Use React 18's startTransition for smoother UI updates
+        startTransition(() => {
+          setConferencesData(conferences);
+          setCachedData(conferences);
 
-        // Update stats
-        setStats((prev) => ({
-          ...prev,
-          totalConferences: 42, // This could be from API in real app
-          liveConferences: conferences.length,
-        }));
+          // Update stats
+          setStats((prev) => ({
+            ...prev,
+            totalConferences: 42, // This could be from API in real app
+            liveConferences: conferences.length,
+          }));
+        });
       } else {
-        toast.error(res.message || 'Failed to fetch conferences');
+        if (!isBackgroundRefresh) {
+          toast.error(res.message || 'Failed to fetch conferences');
+        } else {
+          console.error('Background refresh failed:', res.message);
+        }
       }
     } catch (err) {
       console.error('Error fetching conferences:', err);
-      toast.error('Error fetching conferences');
+      if (!isBackgroundRefresh) {
+        toast.error('Error fetching conferences');
+      }
     } finally {
-      setIsLoading(false);
+      if (!isBackgroundRefresh) {
+        setIsLoading(false);
+      }
+      setIsRefreshing(false);
     }
   };
 
@@ -162,32 +175,71 @@ function AdminDashboard() {
     return moment(timestamp).format('h:mm A');
   };
 
-  // Handle muting/unmuting for guests
-  const handleToggleChannelMute = async (guestChannelId: string, isCurrentlyMuted: boolean) => {
+  // Handle muting/unmuting for guests with optimistic updates
+  const handleToggleChannelMute = async (
+    guestChannelId: string,
+    isCurrentlyMuted: boolean,
+    conferenceIndex: number,
+    guestIndex: number
+  ) => {
+    // Optimistic update for smoother UX
+    const updatedConferences = [...conferencesData];
+    updatedConferences[conferenceIndex].guestChannels[guestIndex].isMuted = !isCurrentlyMuted;
+    setConferencesData(updatedConferences);
+
     try {
       await channelService.toggleChannelMute(guestChannelId, {
         mute: !isCurrentlyMuted,
-        hostChannelId: conferencesData[0]?.hostChannel,
+        hostChannelId: conferencesData[conferenceIndex]?.hostChannel,
       });
 
       toast.success(`Participant ${isCurrentlyMuted ? 'unmuted' : 'muted'}`);
-      fetchLiveConferenceCalls();
+      // No need to refresh the full data here - our optimistic update is enough
     } catch (error) {
       console.error('Error toggling mute:', error);
       toast.error('Failed to change mute status');
+
+      // Revert the optimistic update on failure
+      const revertConferences = [...conferencesData];
+      revertConferences[conferenceIndex].guestChannels[guestIndex].isMuted = isCurrentlyMuted;
+      setConferencesData(revertConferences);
     }
   };
 
-  const handleHangupChannel = async (guestChannelId: string, participantName: string) => {
+  const handleHangupChannel = async (
+    guestChannelId: string,
+    participantName: string,
+    conferenceIndex: number,
+    guestIndex: number
+  ) => {
+    // Optimistic update
+    const updatedConferences = [...conferencesData];
+    updatedConferences[conferenceIndex].guestChannels[guestIndex].status = 'hanging-up';
+    setConferencesData(updatedConferences);
+
     try {
       await channelService.hangupChannel(guestChannelId);
       toast.success(`Disconnected ${participantName}`);
-      fetchLiveConferenceCalls();
+
+      // Update the status to hung-up
+      updatedConferences[conferenceIndex].guestChannels[guestIndex].status = 'hung-up';
+      setConferencesData(updatedConferences);
+
+      // Fetch the latest data in background
+      setTimeout(() => fetchLiveConferenceCalls(true), 1000);
     } catch (error) {
       console.error('Error hanging up:', error);
       toast.error('Failed to disconnect participant');
+
+      // Revert the optimistic update on failure
+      const revertConferences = [...conferencesData];
+      revertConferences[conferenceIndex].guestChannels[guestIndex].status = 'answered';
+      setConferencesData(revertConferences);
     }
   };
+
+  // Use the cached data if we're loading
+  const displayData = isLoading && cachedData.length > 0 ? cachedData : conferencesData;
 
   return (
     <div className="container mx-auto py-6 space-y-8">
@@ -199,6 +251,7 @@ function AdminDashboard() {
               <span className="ml-2 text-green-500 text-sm">• Auto-refreshing every {refreshInterval}s</span>
             )}
             {isPaused && <span className="ml-2 text-orange-500 text-sm">• Auto-refresh paused</span>}
+            {isRefreshing && <span className="ml-2 text-blue-500 text-sm animate-pulse">• Refreshing data...</span>}
           </p>
         </div>
 
@@ -225,9 +278,9 @@ function AdminDashboard() {
             size="sm"
             className="flex items-center gap-1"
             onClick={handleManualRefresh}
-            disabled={isLoading}
+            disabled={isLoading || isRefreshing}
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
         </div>
@@ -308,24 +361,27 @@ function AdminDashboard() {
               <Activity className="w-5 h-5 text-green-500" />
               Live Conferences
             </CardTitle>
-            <Badge className="bg-green-500">{conferencesData.length} Active</Badge>
+            <Badge className="bg-green-500">{displayData.length} Active</Badge>
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading && <div className="text-center py-4">Loading conference data...</div>}
+          {isLoading && displayData.length === 0 && <div className="text-center py-4">Loading conference data...</div>}
 
-          {!isLoading && conferencesData.length === 0 && (
+          {!isLoading && displayData.length === 0 && (
             <div className="text-center py-8 text-slate-500">No active conferences at the moment</div>
           )}
 
-          <div className="space-y-4">
-            {conferencesData.map((conference) => {
+          <div className="space-y-4 transition-opacity duration-300" style={{ opacity: isPending ? 0.7 : 1 }}>
+            {displayData.map((conference, conferenceIndex) => {
               const { duration, progress } = calculateConfDetails(conference);
               const answeredParticipants = conference.guestChannels.filter((g) => g.status === 'answered').length;
               const totalParticipants = conference.guestChannels.length;
 
               return (
-                <div key={conference.bridge} className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
+                <div
+                  key={conference.bridge}
+                  className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 transition-all duration-300"
+                >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <div className="relative">
@@ -417,10 +473,10 @@ function AdminDashboard() {
                   <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
                     <h4 className="text-sm font-medium mb-2">Participants</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {conference.guestChannels.map((guest) => (
+                      {conference.guestChannels.map((guest, guestIndex) => (
                         <div
                           key={guest.channelId}
-                          className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700"
+                          className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 transition-all duration-300"
                         >
                           <div className="flex items-center gap-2">
                             <Avatar className="w-6 h-6">
@@ -430,6 +486,8 @@ function AdminDashboard() {
                                     ? 'bg-green-100 text-green-800'
                                     : guest.status === 'dialing'
                                     ? 'bg-yellow-100 text-yellow-800'
+                                    : guest.status === 'hanging-up'
+                                    ? 'bg-orange-100 text-orange-800'
                                     : 'bg-red-100 text-red-800'
                                 }`}
                               >
@@ -449,10 +507,12 @@ function AdminDashboard() {
                                   ? 'bg-green-100 text-green-800'
                                   : guest.status === 'dialing'
                                   ? 'bg-yellow-100 text-yellow-800'
+                                  : guest.status === 'hanging-up'
+                                  ? 'bg-orange-100 text-orange-800'
                                   : 'bg-red-100 text-red-800'
                               }`}
                             >
-                              {guest.status}
+                              {guest.status === 'hanging-up' ? 'Disconnecting' : guest.status}
                             </Badge>
                             {guest.status === 'answered' && (
                               <div className="flex items-center gap-1">
@@ -469,16 +529,22 @@ function AdminDashboard() {
                                   variant="ghost"
                                   size="icon"
                                   className="h-6 w-6"
-                                  onClick={() => handleToggleChannelMute(guest.channelId, guest.isMuted)}
+                                  onClick={() =>
+                                    handleToggleChannelMute(guest.channelId, guest.isMuted, conferenceIndex, guestIndex)
+                                  }
+                                  title={guest.isMuted ? 'Unmute' : 'Mute'}
                                 >
-                                  {guest.isMuted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
+                                  {!guest.isMuted ? <Mic className="h-3 w-3" /> : <MicOff className="h-3 w-3" />}
                                 </Button>
 
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="h-6 w-6"
-                                  onClick={() => handleHangupChannel(guest.channelId, guest.name)}
+                                  onClick={() =>
+                                    handleHangupChannel(guest.channelId, guest.name, conferenceIndex, guestIndex)
+                                  }
+                                  title="hangup"
                                 >
                                   <PhoneOff className="h-3 w-3" />
                                 </Button>
