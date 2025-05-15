@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Mic, PhoneCall, Folder, Activity, Edit } from 'lucide-react';
+import { Mic, PhoneCall, Folder, Activity, Edit, Plus } from 'lucide-react';
 import CreateConferenceModal from './CreateConferenceModal';
-import WelcomeAudioModal from './WelcomeAudioModal';
+import AudioModal from './AudioModal';
 import DataTable from './DataTable';
 import { conferenceService } from '@/utils/services';
 import toast from 'react-hot-toast';
@@ -212,10 +212,11 @@ export default function AdminDashboard() {
             editConference={editConference}
             fetchConferences={fetchConferences}
           />
-          <Button variant={'default'} onClick={() => setOpen(true)}>
+          <Button variant={'default'} className="flex items-center gap-2" onClick={() => setOpen(true)}>
+            <Plus />
             Create Conference
           </Button>
-          <WelcomeAudioModal />
+          <AudioModal />
         </div>
       </div>
 
