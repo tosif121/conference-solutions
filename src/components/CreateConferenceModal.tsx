@@ -135,15 +135,18 @@ export default function CreateConferenceModal({
     }
   };
 
+  // Consistently format phone numbers by removing any non-digit characters and ensuring 10 digits only
+  const formatPhoneNumber = (phone: string): string => {
+    // Remove all non-digit characters
+    const digitsOnly = phone.replace(/\D/g, '');
+    // Remove +91 prefix if present
+    return digitsOnly.replace(/^91/, '').slice(0, 10);
+  };
+
   // Effect to populate form data when editConference changes
   useEffect(() => {
     if (editConference) {
       setIsEditMode(true);
-
-      // Format phone numbers by removing the +91 prefix if present
-      const formatPhoneForEdit = (phone: string) => {
-        return phone?.replace(/^\+91/, '') || '';
-      };
 
       // Populate the form with existing conference data
       setFormData({
@@ -151,13 +154,13 @@ export default function CreateConferenceModal({
         description: editConference.description || '',
         host: {
           name: editConference.host?.name || '',
-          phoneNumber: formatPhoneForEdit(editConference.host?.phoneNumber || ''),
+          phoneNumber: formatPhoneNumber(editConference.host?.phoneNumber || ''),
         },
         guests:
           editConference.guests?.length > 0
             ? editConference.guests.map((guest) => ({
                 name: guest.name || '',
-                phoneNumber: formatPhoneForEdit(guest.phoneNumber || ''),
+                phoneNumber: formatPhoneNumber(guest.phoneNumber || ''),
                 guestArrivalMusic: guest.guestArrivalMusic || '',
               }))
             : [{ name: '', phoneNumber: '', guestArrivalMusic: '' }],
@@ -186,9 +189,8 @@ export default function CreateConferenceModal({
 
     // Host validation
     if (!formData.host.name.trim()) newErrors.hostName = 'Host name is required';
-    if (!formData.host.phoneNumber.trim()) newErrors.hostPhone = 'Host phone is required';
 
-    // Phone validation (simple regex for demonstration)
+    // Phone validation with exact 10 digits
     const phoneRegex = /^[0-9]{10}$/;
     if (!formData.host.phoneNumber.trim()) {
       newErrors.hostPhone = 'Host phone is required';
@@ -206,7 +208,7 @@ export default function CreateConferenceModal({
         newErrors[`guestPhone_${index}`] = 'Guest phone is required if name is provided';
       }
 
-      // Phone validation for guests
+      // Phone validation for guests - only if phone is provided
       if (guest.phoneNumber && !phoneRegex.test(guest.phoneNumber)) {
         newErrors[`guestPhone_${index}`] = 'Please enter a valid 10-digit mobile number';
       }
@@ -227,8 +229,6 @@ export default function CreateConferenceModal({
     }
 
     setIsSubmitting(true);
-    const formatPhone = (num: string) => (num ? `+91${num}` : '');
-
     try {
       // Update welcomeAudioId from selected audio before submission
       const dataToSubmit = {
@@ -242,13 +242,13 @@ export default function CreateConferenceModal({
         description: dataToSubmit.description,
         host: {
           ...dataToSubmit.host,
-          phoneNumber: formatPhone(dataToSubmit.host.phoneNumber),
+          phoneNumber: dataToSubmit.host.phoneNumber,
         },
         guests: dataToSubmit.guests
           .filter((guest) => guest.name || guest.phoneNumber)
           .map((guest) => ({
             ...guest,
-            phoneNumber: formatPhone(guest.phoneNumber),
+            phoneNumber: guest.phoneNumber,
           })),
         welcomeAudioId: dataToSubmit.playWelcomeAudio ? dataToSubmit.welcomeAudioId : undefined,
         playWelcomeAudio: dataToSubmit.playWelcomeAudio,
@@ -333,6 +333,7 @@ export default function CreateConferenceModal({
   // Update host fields
   const updateHostField = (field: keyof Host, value: string): void => {
     if (field === 'phoneNumber') {
+      // Only allow digits and limit to 10 digits
       value = value.replace(/\D/g, '').slice(0, 10);
     }
     setFormData({
@@ -348,6 +349,7 @@ export default function CreateConferenceModal({
   const updateGuestField = (index: number, field: keyof Guest, value: string): void => {
     const newGuests = [...formData.guests];
     if (field === 'phoneNumber' && typeof value === 'string') {
+      // Only allow digits and limit to 10 digits
       value = value.replace(/\D/g, '').slice(0, 10);
     }
     newGuests[index] = {
@@ -500,22 +502,18 @@ export default function CreateConferenceModal({
                       <span>Host Mobile</span>
                       <span className="text-red-500">*</span>
                     </Label>
-                    <div className="flex">
-                      <div className="flex items-center justify-center bg-slate-100 dark:bg-slate-800 px-3 border border-r-0 rounded-l-md border-slate-200 dark:border-slate-700">
-                        +91
-                      </div>
-                      <Input
-                        id="hostPhone"
-                        type="text"
-                        inputMode="numeric"
-                        value={formData.host.phoneNumber}
-                        onChange={(e) => updateHostField('phoneNumber', e.target.value)}
-                        placeholder="Enter Mobile No."
-                        className={`rounded-l-none ${errors.hostPhone ? 'border-red-500' : ''}`}
-                        aria-invalid={!!errors.hostPhone}
-                        aria-describedby={errors.hostPhone ? 'hostPhone-error' : undefined}
-                      />
-                    </div>
+
+                    <Input
+                      id="hostPhone"
+                      type="text"
+                      inputMode="numeric"
+                      value={formData.host.phoneNumber}
+                      onChange={(e) => updateHostField('phoneNumber', e.target.value)}
+                      placeholder="Enter Mobile No."
+                      className={`${errors.hostPhone ? 'border-red-500' : ''}`}
+                      aria-invalid={!!errors.hostPhone}
+                      aria-describedby={errors.hostPhone ? 'hostPhone-error' : undefined}
+                    />
                     {errors.hostPhone && (
                       <p id="hostPhone-error" className="text-red-500 text-sm">
                         {errors.hostPhone}
@@ -581,20 +579,16 @@ export default function CreateConferenceModal({
 
                     <div className="space-y-2">
                       <Label htmlFor={`guestPhone-${index}`}>Guest Mobile</Label>
-                      <div className="flex">
-                        <div className="flex items-center justify-center bg-slate-100 dark:bg-slate-800 px-3 border border-r-0 rounded-l-md border-slate-200 dark:border-slate-700">
-                          +91
-                        </div>
-                        <Input
-                          id={`guestPhone-${index}`}
-                          value={guest.phoneNumber}
-                          onChange={(e) => updateGuestField(index, 'phoneNumber', e.target.value)}
-                          placeholder="Enter Mobile No."
-                          className={`rounded-l-none ${errors[`guestPhone_${index}`] ? 'border-red-500' : ''}`}
-                          aria-invalid={!!errors[`guestPhone_${index}`]}
-                          aria-describedby={errors[`guestPhone_${index}`] ? `guestPhone-error-${index}` : undefined}
-                        />
-                      </div>
+
+                      <Input
+                        id={`guestPhone-${index}`}
+                        value={guest.phoneNumber}
+                        onChange={(e) => updateGuestField(index, 'phoneNumber', e.target.value)}
+                        placeholder="Enter Mobile No."
+                        className={`${errors[`guestPhone_${index}`] ? 'border-red-500' : ''}`}
+                        aria-invalid={!!errors[`guestPhone_${index}`]}
+                        aria-describedby={errors[`guestPhone_${index}`] ? `guestPhone-error-${index}` : undefined}
+                      />
                       {errors[`guestPhone_${index}`] && (
                         <p id={`guestPhone-error-${index}`} className="text-red-500 text-sm">
                           {errors[`guestPhone_${index}`]}

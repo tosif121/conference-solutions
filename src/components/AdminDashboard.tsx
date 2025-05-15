@@ -1,14 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { SetStateAction, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -17,7 +11,6 @@ import {
   PhoneCall,
   Folder,
   Activity,
-  MoreVertical,
   Users,
   Clock,
   RefreshCw,
@@ -31,8 +24,39 @@ import toast from 'react-hot-toast';
 import { Input } from '@/components/ui/input';
 import moment from 'moment';
 
-export default function AdminDashboard() {
-  const [conferencesData, setConferencesData] = useState([]);
+interface GuestChannel {
+  name: string;
+  phoneNumber: string;
+  status: string;
+  dialedAttempt: number;
+  channelId: string;
+  startTime: number;
+  answerTime: number | null;
+  hangupTime: number | null;
+  isMuted: boolean;
+  guestArivalMusic?: string;
+}
+
+interface Conference {
+  hostChannel: string;
+  hostNumber: string;
+  adminUser: string;
+  dialedNumber: string;
+  hostName: string;
+  numberOfGuests: number;
+  isGuestMuted: boolean;
+  bridge: string;
+  type: string;
+  status: string;
+  conference: string;
+  guestChannels: GuestChannel[];
+  playbackId: string;
+  answerTime: number;
+  startTime?: number;
+}
+
+function AdminDashboard() {
+  const [conferencesData, setConferencesData] = useState<Conference[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(4);
   const [refreshIntervalInput, setRefreshIntervalInput] = useState('4');
@@ -47,7 +71,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchLiveConferenceCalls();
 
-    let intervalId;
+    let intervalId: string | number | NodeJS.Timeout | undefined;
     if (!isPaused) {
       intervalId = setInterval(() => {
         fetchLiveConferenceCalls();
@@ -68,11 +92,10 @@ export default function AdminDashboard() {
         // Assuming the API returns an array directly or in a nested property
         let conferences = Array.isArray(res.data) ? res.data : res.data.liveConfCalls || [];
 
-        // Process conferences with momentjs
-        conferences = conferences.map((conference) => {
-          // Convert timestamps to moment objects if they exist
-          if (conference.startTime) {
-            conference.momentStartTime = moment(conference.startTime);
+        // Add startTime from answerTime if needed
+        conferences = conferences.map((conference: Conference) => {
+          if (!conference.startTime && conference.answerTime) {
+            conference.startTime = conference.answerTime;
           }
           return conference;
         });
@@ -96,7 +119,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleRefreshIntervalChange = (e) => {
+  const handleRefreshIntervalChange = (e: { target: { value: SetStateAction<string> } }) => {
     setRefreshIntervalInput(e.target.value);
   };
 
@@ -121,117 +144,56 @@ export default function AdminDashboard() {
     toast.success('Data refreshed');
   };
 
-  // Calculate conference duration and progress using moment.js
-  const calculateConfDetails = (conference) => {
-    const startTime = conference.momentStartTime || moment();
+  const calculateConfDetails = (conference: Conference) => {
+    const startTime = conference.answerTime ? moment(conference.answerTime) : moment();
     const now = moment();
     const durationMinutes = now.diff(startTime, 'minutes');
     const durationSeconds = now.diff(startTime, 'seconds') % 60;
 
-    // Format as mm:ss
     const duration = `${durationMinutes.toString().padStart(2, '0')}:${durationSeconds.toString().padStart(2, '0')}`;
-
-    // Assuming calls last around 30 minutes, calculate progress
     const progress = Math.min(Math.round((now.diff(startTime, 'seconds') / (30 * 60)) * 100), 100);
 
     return { duration, progress };
   };
 
   // Format timestamp using moment.js
-  const formatTime = (timestamp) => {
+  const formatTime = (timestamp: number | undefined) => {
     if (!timestamp) return '';
     return moment(timestamp).format('h:mm A');
   };
 
   // Handle muting/unmuting for guests
-  const handleToggleChannelMute = async (conference, channelId, isMuted) => {
+  const handleToggleChannelMute = async (guestChannelId: string, isCurrentlyMuted: boolean) => {
     try {
-      // Get the host channel ID from the conference data
-      const hostChannelId = conference.hostChannel;
+      // Directly use the guest channel ID for muting
+      await channelService.toggleChannelMute(guestChannelId, {
+        mute: !isCurrentlyMuted,
+      });
 
-      if (!hostChannelId) {
-        toast.error('Host channel information not available');
-        return;
-      }
-
-      const muteParams = {
-        mute: !isMuted,
-        hostChannelId: hostChannelId,
-      };
-
-      await channelService.toggleChannelMute(channelId, muteParams);
-      toast.success(`${isMuted ? 'Unmuted' : 'Muted'} participant successfully`);
-      // Refresh data to show updated state
+      toast.success(`Participant ${isCurrentlyMuted ? 'unmuted' : 'muted'}`);
       fetchLiveConferenceCalls();
     } catch (error) {
-      console.error('Error toggling mute status:', error);
+      console.error('Error toggling mute:', error);
       toast.error('Failed to change mute status');
     }
   };
 
-  // Handle hanging up a channel
-  const handleHangupChannel = async (channelId, participantName) => {
+  const handleHangupChannel = async (guestChannelId: string, participantName: string) => {
     try {
-      await channelService.hangupChannel(channelId);
-      toast.success(`Disconnected ${participantName} from the call`);
-      // Refresh data to show updated state
+      await channelService.hangupChannel(guestChannelId);
+      toast.success(`Disconnected ${participantName}`);
       fetchLiveConferenceCalls();
     } catch (error) {
-      console.error('Error hanging up channel:', error);
+      console.error('Error hanging up:', error);
       toast.error('Failed to disconnect participant');
     }
-  };
-
-  // Handle toggling mute for all guests in a conference
-  const handleToggleConferenceMute = async (conference) => {
-    try {
-      const answeredGuests = conference.guestChannels.filter((guest) => guest.status === 'answered');
-
-      // Get the host channel ID from the conference data
-      const hostChannelId = conference.hostChannel?.channelId;
-
-      if (!hostChannelId) {
-        toast.error('Host channel information not available');
-        return;
-      }
-
-      // Create an array of promises for each mute operation
-      const mutePromises = answeredGuests.map((guest) => {
-        const muteParams = {
-          mute: !conference.isGuestMuted, // Reverse current state
-          hostChannelId: hostChannelId,
-        };
-        return channelService.toggleChannelMute(guest.channelId, muteParams);
-      });
-
-      // Wait for all operations to complete
-      await Promise.all(mutePromises);
-
-      toast.success(
-        `${conference.isGuestMuted ? 'Unmuted' : 'Muted'} all guests in conference ${conference.conference}`
-      );
-      fetchLiveConferenceCalls();
-    } catch (error) {
-      console.error('Error toggling conference mute status:', error);
-      toast.error('Failed to change conference mute status');
-    }
-  };
-
-  // Function to get the host name from conference data
-  const getHostName = (conference) => {
-    return conference.hostChannel?.name || 'Unknown Host';
-  };
-
-  // Function to check if a conference has a valid host
-  const hasValidHost = (conference) => {
-    return conference.hostChannel && conference.hostChannel.status === 'answered';
   };
 
   return (
     <div className="container mx-auto py-6 space-y-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Admin Dashboard</h1>
+          <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Conference Dashboard</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
             {!isPaused && (
               <span className="ml-2 text-green-500 text-sm">• Auto-refreshing every {refreshInterval}s</span>
@@ -361,8 +323,6 @@ export default function AdminDashboard() {
               const { duration, progress } = calculateConfDetails(conference);
               const answeredParticipants = conference.guestChannels.filter((g) => g.status === 'answered').length;
               const totalParticipants = conference.guestChannels.length;
-              const hostName = getHostName(conference);
-              const isHostActive = hasValidHost(conference);
 
               return (
                 <div key={conference.bridge} className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
@@ -380,7 +340,7 @@ export default function AdminDashboard() {
                         <h3 className="font-medium">{conference.conference}</h3>
                         <div className="flex items-center text-xs text-muted-foreground gap-3">
                           <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {formatTime(conference.startTime)}
+                            <Clock className="w-3 h-3" /> {formatTime(conference.answerTime)}
                           </span>
                           <span className="flex items-center gap-1">
                             <Users className="w-3 h-3" /> {answeredParticipants}/{totalParticipants} connected
@@ -398,30 +358,17 @@ export default function AdminDashboard() {
                         {conference.isGuestMuted ? 'Guests Muted' : 'Guests Unmuted'}
                       </Badge>
                       <Badge
-                        variant={isHostActive ? 'outline' : 'secondary'}
-                        className={isHostActive ? 'bg-blue-100 text-blue-800' : ''}
+                        variant="outline"
+                        className={`${
+                          conference.status === 'answered'
+                            ? 'bg-green-100 text-green-800'
+                            : conference.status === 'ringing'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
                       >
-                        Host: {hostName}
+                        {conference.status}
                       </Badge>
-
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {/* <DropdownMenuItem>View Details</DropdownMenuItem>
-                          <DropdownMenuItem>End Call</DropdownMenuItem>
-                          <DropdownMenuItem>Add Participant</DropdownMenuItem> */}
-                          <DropdownMenuItem
-                            onClick={() => handleToggleConferenceMute(conference)}
-                            disabled={!isHostActive}
-                          >
-                            {conference.isGuestMuted ? 'Unmute All Guests' : 'Mute All Guests'}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </div>
                   </div>
 
@@ -439,55 +386,32 @@ export default function AdminDashboard() {
                   </div>
 
                   {/* Host information */}
-                  {conference.hostChannel && (
-                    <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
-                      <h4 className="text-sm font-medium mb-2">Host</h4>
-                      <div className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarFallback
-                              className={`text-xs ${
-                                conference.hostChannel.status === 'answered'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : conference.hostChannel.status === 'dialing'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-red-100 text-red-800'
-                              }`}
-                            >
-                              {conference.hostChannel.name?.slice(0, 1).toUpperCase() || 'H'}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm font-medium">{conference.hostChannel.name || 'Unknown Host'}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
+                  <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+                    <h4 className="text-sm font-medium mb-2">Host</h4>
+                    <div className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="w-6 h-6">
+                          <AvatarFallback
                             className={`text-xs ${
-                              conference.hostChannel.status === 'answered'
-                                ? 'bg-green-100 text-green-800'
-                                : conference.hostChannel.status === 'dialing'
+                              conference.status === 'answered'
+                                ? 'bg-blue-100 text-blue-800'
+                                : conference.status === 'ringing'
                                 ? 'bg-yellow-100 text-yellow-800'
                                 : 'bg-red-100 text-red-800'
                             }`}
                           >
-                            {conference.hostChannel.status}
-                          </Badge>
-                          {conference.hostChannel.status === 'answered' && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() =>
-                                handleHangupChannel(conference.hostChannel.channelId, conference.hostChannel.name)
-                              }
-                            >
-                              <PhoneOff className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
+                            {conference.hostName?.slice(0, 1).toUpperCase() || 'H'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium">{conference.hostName || 'Unknown Host'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {conference.hostNumber}
+                        </Badge>
                       </div>
                     </div>
-                  )}
+                  </div>
 
                   {/* Participants */}
                   <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
@@ -509,10 +433,13 @@ export default function AdminDashboard() {
                                     : 'bg-red-100 text-red-800'
                                 }`}
                               >
-                                {guest.name?.slice(0, 1).toUpperCase() || 'G'}
+                                {guest.name?.trim() ? guest.name.slice(0, 1).toUpperCase() : 'G'}
                               </AvatarFallback>
                             </Avatar>
-                            <span className="text-sm font-medium">{guest.name}</span>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium">{guest.name || 'Unknown'}</span>
+                              <span className="text-xs text-slate-500">{guest.phoneNumber}</span>
+                            </div>
                           </div>
                           <div className="flex items-center gap-2">
                             <Badge
@@ -537,32 +464,24 @@ export default function AdminDashboard() {
                                 >
                                   {guest.isMuted ? 'Muted' : 'Unmuted'}
                                 </Badge>
-                                {isHostActive && (
-                                  <>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6"
-                                      onClick={() =>
-                                        handleToggleChannelMute(conference, guest.channelId, guest.isMuted)
-                                      }
-                                    >
-                                      {guest.isMuted ? (
-                                        <Volume2 className="h-3 w-3" />
-                                      ) : (
-                                        <VolumeX className="h-3 w-3" />
-                                      )}
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6"
-                                      onClick={() => handleHangupChannel(guest.channelId, guest.name)}
-                                    >
-                                      <PhoneOff className="h-3 w-3" />
-                                    </Button>
-                                  </>
-                                )}
+
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => handleToggleChannelMute(guest.channelId, guest.isMuted)}
+                                >
+                                  {guest.isMuted ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
+                                </Button>
+
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => handleHangupChannel(guest.channelId, guest.name)}
+                                >
+                                  <PhoneOff className="h-3 w-3" />
+                                </Button>
                               </div>
                             )}
                           </div>
@@ -579,3 +498,5 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+export default AdminDashboard;

@@ -30,7 +30,6 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
     name: '',
     email: '',
     password: '',
-    phone: '',
     rawPhone: '',
     assignedDids: [] as string[],
   };
@@ -52,16 +51,13 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
 
   useEffect(() => {
     if (adminByUsername) {
-      const rawPhone = adminByUsername.phone.startsWith('+91')
-        ? adminByUsername.phone.substring(3)
-        : adminByUsername.phone;
+      const rawPhone = adminByUsername.phone.slice(-10); // Extract last 10 digits
 
       setFormData({
         username: adminByUsername.username || '',
         name: adminByUsername.name || '',
         email: adminByUsername.email || '',
         password: adminByUsername.password || '',
-        phone: adminByUsername.phone || '',
         rawPhone: rawPhone,
         assignedDids: adminByUsername.assignedDids || [],
       });
@@ -86,7 +82,7 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
   }, [formData.rawPhone]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target as { id: string; value: string };
+    const { id, value } = e.target;
 
     if (id === 'rawPhone') {
       const numbersOnly = value.replace(/\D/g, '');
@@ -94,8 +90,8 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
 
       setFormData((prev) => ({ ...prev, rawPhone: limitedInput }));
 
-      if (errors.phone || errors.rawPhone) {
-        setErrors((prev) => ({ ...prev, phone: '', rawPhone: '' }));
+      if (errors.rawPhone) {
+        setErrors((prev) => ({ ...prev, rawPhone: '' }));
       }
     } else {
       setFormData((prev) => ({ ...prev, [id]: value }));
@@ -213,7 +209,7 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        phone: formData.phone, // This includes the +91 prefix
+        phone: formData.rawPhone,
         assignedDids: formData.assignedDids,
       };
 
@@ -361,22 +357,17 @@ function CreateAdmin({ fetchAdmins, adminByUsername }: CreateAdminProps) {
               <Phone className="h-3.5 w-3.5 text-slate-500" />
               Mobile Number
             </Label>
-            <div className="flex">
-              <div className="flex items-center justify-center bg-slate-100 dark:bg-slate-800 px-3 border border-r-0 rounded-l-md border-slate-200 dark:border-slate-700">
-                +91
-              </div>
-              <Input
-                id="rawPhone"
-                type="text"
-                inputMode="numeric"
-                value={formData.rawPhone}
-                onChange={handleChange}
-                placeholder="Enter 10-digit mobile number"
-                className={`h-10 rounded-l-none ${errors.rawPhone ? 'border-red-500 focus:ring-red-500' : ''}`}
-                disabled={isLoading}
-                required
-              />
-            </div>
+            <Input
+              id="rawPhone"
+              type="text"
+              inputMode="numeric"
+              value={formData.rawPhone}
+              onChange={handleChange}
+              placeholder="Enter 10-digit mobile number"
+              className={`h-10 ${errors.rawPhone ? 'border-red-500 focus:ring-red-500' : ''}`}
+              disabled={isLoading}
+              required
+            />
             {errors.rawPhone && <p className="text-xs text-red-500 mt-1">{errors.rawPhone}</p>}
           </div>
 
