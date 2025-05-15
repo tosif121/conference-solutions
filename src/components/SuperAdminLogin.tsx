@@ -47,19 +47,16 @@ export default function SuperAdminLogin() {
     setIsLoading(true);
 
     try {
-      // Call the actual API endpoint
       const response = await authService.superAdminLogin({ username, password });
-      console.log(response);
       if (response.status) {
-        // Success - store token in cookie
-        Cookies.set('super_admin_token', response.data.token, {
-          expires: 1, // 1 day
+        Cookies.set('conference_token', response.data.token, {
+          expires: 1,
           path: '/',
         });
+        Cookies.set('user_role', 'super_admin');
         toast.success(response.message);
         router.push('/super-admin/dashboard');
       } else {
-        // Error handling
         toast.error(response.message || 'Invalid credentials');
         setIsLoading(false);
       }

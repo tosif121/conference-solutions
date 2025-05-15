@@ -16,34 +16,35 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState<'super_admin' | 'admin' | null>(null);
-  
+
   useEffect(() => {
-    // Check for role on component mount and cookie changes
-    const adminToken = Cookies.get('admin_token');
-    const superAdminToken = Cookies.get('super_admin_token');
-    
-    if (superAdminToken) {
-      setUserRole('super_admin');
-    } else if (adminToken) {
-      setUserRole('admin');
+    const conferenceToken = Cookies.get('conference_token');
+    const role = Cookies.get('user_role');
+
+    if (conferenceToken) {
+      if (role === 'super_admin') {
+        setUserRole('super_admin');
+      } else if (role === 'admin') {
+        setUserRole('admin');
+      } else {
+        Cookies.remove('conference_token', { path: '/' });
+        Cookies.remove('user_role', { path: '/' });
+        router.push('/');
+      }
     } else {
-      // If no valid token is found, redirect to login
       router.push('/');
     }
   }, [router]);
-  
-  // Define navigation links based on user role
+
   const getNavLinks = () => {
-    // Common links for all roles
     const commonLinks = [
       {
         name: 'Dashboard',
         href: userRole === 'admin' ? '/admin/dashboard' : '/super-admin/dashboard',
         icon: <LayoutDashboard className="w-4 h-4" />,
-      }
+      },
     ];
-    
-    // Super admin specific links
+
     const superAdminLinks = [
       {
         name: 'Manage Admins',
@@ -54,22 +55,17 @@ export default function Header() {
         name: 'Assign DIDs',
         href: '/super-admin/dids',
         icon: <Phone className="w-4 h-4" />,
-      }
+      },
     ];
-    
-    // Admin specific links (you can add more as needed)
-    const adminLinks: never[] = [
-      // Add admin specific links here
-    ];
-    
-    // Return appropriate links based on role
+
+    const adminLinks: never[] = [];
+
     if (userRole === 'super_admin') {
       return [...commonLinks, ...superAdminLinks];
     } else if (userRole === 'admin') {
       return [...commonLinks, ...adminLinks];
     }
-    
-    // Default - return just common links if role hasn't been determined yet
+
     return commonLinks;
   };
 
@@ -77,19 +73,17 @@ export default function Header() {
   const toggleUserMenu = () => setUserMenuOpen(!userMenuOpen);
 
   const handleLogout = () => {
-    Cookies.remove('super_admin_token', { path: '/' });
-    Cookies.remove('admin_token', { path: '/' });
+    Cookies.remove('conference_token', { path: '/' });
+    Cookies.remove('user_role', { path: '/' });
     toast.success('Logged out!');
     router.push('/');
   };
 
-  // Get navigation links based on current role
   const navLinks = getNavLinks();
 
   return (
     <header className="w-full bg-white dark:bg-slate-900 shadow-md border-b border-border sticky top-0 z-40">
       <div className="container mx-auto flex items-center justify-between h-16">
-        {/* Logo & Brand */}
         <div className="flex items-center gap-2">
           <div className="bg-primary/10 p-1.5 rounded-md">
             <Shield className="w-5 h-5 text-primary" />
@@ -100,7 +94,6 @@ export default function Header() {
           </span>
         </div>
 
-        {/* Desktop Nav */}
         <div className="hidden md:flex items-center gap-4">
           <nav className="flex gap-1.5">
             {navLinks.map((link) => {
@@ -125,21 +118,17 @@ export default function Header() {
 
           <div className="h-6 w-px bg-border mx-1"></div>
 
-          {/* User Menu */}
           <div className="relative">
             <Button variant="ghost" size="sm" onClick={toggleUserMenu} className="flex items-center gap-1.5 px-3 py-2">
               <div className="w-6 h-6 rounded-full bg-primary/15 text-primary flex items-center justify-center">
                 <User className="w-4 h-4" />
               </div>
-              <span className="hidden sm:inline">
-                {userRole === 'super_admin' ? 'Super Admin' : 'Admin'}
-              </span>
+              <span className="hidden sm:inline">{userRole === 'super_admin' ? 'Super Admin' : 'Admin'}</span>
               <ChevronDown className={cn('w-4 h-4', userMenuOpen && 'rotate-180')} />
             </Button>
 
             {userMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-border rounded-md shadow-md z-50">
-               
                 <div className="py-1">
                   <Link
                     href={userRole === 'super_admin' ? '/super-admin/profile' : '/admin/profile'}
@@ -172,7 +161,6 @@ export default function Header() {
           <ThemeToggle />
         </div>
 
-        {/* Mobile Toggle */}
         <div className="flex md:hidden items-center gap-3">
           <ThemeToggle />
           <button onClick={toggleMobileMenu} className="p-1.5 rounded-md hover:bg-muted">
@@ -181,7 +169,6 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Mobile Nav */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-white dark:bg-slate-900 border-t border-border px-4 py-4 space-y-2">
           {navLinks.map((link) => {

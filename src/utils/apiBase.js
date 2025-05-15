@@ -6,17 +6,22 @@ function generateHeaders(contentType = 'application/json') {
     'Content-Type': contentType,
   };
 
-  const token = Cookies.get('super_admin_token') || Cookies.get('admin_token');
+  const token = Cookies.get('conference_token');
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
   return { headers };
 }
+
 function logoutAndRedirect() {
-  Cookies.remove('super_admin_token');
-  Cookies.remove('admin_token');
-  window.location.href = '/admin/login';
+  Cookies.remove('conference_token');
+  Cookies.remove('user_role');
+
+  const currentPath = window.location.pathname;
+  const redirectUrl = currentPath.startsWith('/super-admin') ? '/super-admin/login' : '/admin/login';
+
+  window.location.href = redirectUrl;
 }
 
 async function makeRequest(method, url, params, contentType = 'application/json') {

@@ -2,7 +2,6 @@
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import Cookies from 'js-cookie';
-import toast from 'react-hot-toast';
 
 function DefaultPage() {
   const router = useRouter();
@@ -10,20 +9,28 @@ function DefaultPage() {
 
   useEffect(() => {
     // Check for authentication and redirect based on role
-    const superAdminToken = Cookies.get('super_admin_token');
-    const adminToken = Cookies.get('admin_token');
+    const conferenceToken = Cookies.get('conference_token');
+    const userRole = Cookies.get('user_role');
 
     // Small delay to ensure cookies are properly checked
     setTimeout(() => {
-      if (superAdminToken) {
-        // User is a super admin
-        router.push('/super-admin/dashboard');
-      } else if (adminToken) {
-        // User is a regular admin
-        router.push('/admin/dashboard');
+      if (conferenceToken) {
+        if (userRole === 'super_admin') {
+          // User is a super admin
+          router.push('/super-admin/dashboard');
+        } else if (userRole === 'admin') {
+          // User is a regular admin
+          router.push('/admin/dashboard');
+        } else {
+          // Token exists but role is invalid or missing
+          // Clear potentially corrupted cookies
+          Cookies.remove('conference_token');
+          Cookies.remove('user_role');
+          router.push('/admin/login');
+        }
       } else {
         // No valid token found, redirect to login
-        router.push('admin/login');
+        router.push('/admin/login');
       }
       setIsLoading(false);
     }, 100);

@@ -51,12 +51,12 @@ export default function AdminLogin() {
       const response = await authService.adminLogin({ username, password });
 
       if (response.status) {
-        // Success - store token in cookie
-        Cookies.set('admin_token', response.data.token, {
-          expires: 1, // 1 day
+        Cookies.set('conference_token', response.data.token, {
+          expires: 1,
           path: '/',
         });
-        toast.success(response.message );
+        Cookies.set('user_role', 'admin');
+        toast.success(response.message);
         router.push('/admin/dashboard');
       } else {
         // Error handling
