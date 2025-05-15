@@ -36,7 +36,7 @@ function logoutAndRedirect() {
     if (currentPath !== loginPath && !currentPath.endsWith('/login')) {
       window.location.href = loginPath;
     }
-  }, 5000);
+  }, 10000);
 }
 
 // Setup request interceptor

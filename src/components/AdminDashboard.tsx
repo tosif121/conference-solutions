@@ -165,9 +165,9 @@ function AdminDashboard() {
   // Handle muting/unmuting for guests
   const handleToggleChannelMute = async (guestChannelId: string, isCurrentlyMuted: boolean) => {
     try {
-      // Directly use the guest channel ID for muting
       await channelService.toggleChannelMute(guestChannelId, {
         mute: !isCurrentlyMuted,
+        hostChannelId: conferencesData[0]?.hostChannel,
       });
 
       toast.success(`Participant ${isCurrentlyMuted ? 'unmuted' : 'muted'}`);
@@ -471,7 +471,7 @@ function AdminDashboard() {
                                   className="h-6 w-6"
                                   onClick={() => handleToggleChannelMute(guest.channelId, guest.isMuted)}
                                 >
-                                  {guest.isMuted ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
+                                  {guest.isMuted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
                                 </Button>
 
                                 <Button
