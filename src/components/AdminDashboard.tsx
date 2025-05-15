@@ -233,7 +233,6 @@ export default function AdminDashboard() {
         <div>
           <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Admin Dashboard</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Manage your conferences and monitor system activity
             {!isPaused && (
               <span className="ml-2 text-green-500 text-sm">• Auto-refreshing every {refreshInterval}s</span>
             )}
