@@ -5,7 +5,19 @@ import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import ThemeToggle from './ThemeProvider';
 import { useState, useEffect } from 'react';
-import { Menu, X, LogOut, ChevronDown, User, Settings, Shield, LayoutDashboard, Users, Phone } from 'lucide-react';
+import {
+  Menu,
+  X,
+  LogOut,
+  ChevronDown,
+  User,
+  Settings,
+  Shield,
+  LayoutDashboard,
+  Users,
+  Phone,
+  HeadsetIcon,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
 import Cookies from 'js-cookie';
@@ -58,8 +70,13 @@ export default function Header() {
       },
     ];
 
-    const adminLinks: never[] = [];
-
+    const adminLinks = [
+      {
+        name: 'Conferences',
+        href: '/admin/conferences',
+        icon: <HeadsetIcon className="w-4 h-4" />,
+      },
+    ];
     if (userRole === 'super_admin') {
       return [...commonLinks, ...superAdminLinks];
     } else if (userRole === 'admin') {

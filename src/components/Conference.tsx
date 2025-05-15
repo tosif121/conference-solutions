@@ -202,7 +202,7 @@ export default function AdminDashboard() {
     <div className="container mx-auto py-6 space-y-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Admin Dashboard</h1>
+          <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Conferences Management</h1>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -220,75 +220,17 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="overflow-hidden border-l-4 border-l-primary">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="bg-primary/10 p-3 rounded-lg">
-              <PhoneCall className="w-8 h-8 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Conferences</p>
-              <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">{stats.total}</h2>
-                {stats.total > 0 && <span className="text-xs text-green-500">Active</span>}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden border-l-4 border-l-green-500">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="bg-green-500/10 p-3 rounded-lg">
-              <Activity className="w-8 h-8 text-green-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Live Conferences</p>
-              <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">{stats.live}</h2>
-                {stats.live > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                  >
-                    Live
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden border-l-4 border-l-orange-500">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="bg-orange-500/10 p-3 rounded-lg">
-              <Mic className="w-8 h-8 text-orange-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Audio Files</p>
-              <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">{stats.audioFiles}</h2>
-                <span className="text-xs text-orange-500">Available</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden border-l-4 border-l-blue-500">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="bg-blue-500/10 p-3 rounded-lg">
-              <Folder className="w-8 h-8 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">DIDs Assigned</p>
-              <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-bold">{stats.didsAssigned}</h2>
-                <span className="text-xs text-blue-500">of 10 available</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="lg:col-span-2">
+        <CardContent>
+          {isLoading ? (
+            <div className="py-8 text-center text-slate-500 dark:text-slate-400">Loading conferences...</div>
+          ) : conferencesData?.length > 0 ? (
+            <DataTable data={conferencesData} columns={columns} searchPlaceholder="Search Conferences..." />
+          ) : (
+            <div className="py-8 text-center text-slate-500 dark:text-slate-400">No conferences found.</div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

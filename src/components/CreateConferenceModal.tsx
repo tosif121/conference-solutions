@@ -755,7 +755,7 @@ export default function CreateConferenceModal({
                             className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors ${
                               selectedAudio === audio.id
                                 ? 'bg-primary/10 border border-primary'
-                                : 'bg-slate-50 hover:bg-slate-100 border border-transparent'
+                                : 'bg-slate-50 dark:bg-black/50 dark:hover:bg-primary/10 hover:bg-slate-100 border border-transparent'
                             }`}
                             role="button"
                             aria-pressed={selectedAudio === audio.id}

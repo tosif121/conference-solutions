@@ -208,7 +208,9 @@ export default function AudioManager() {
   };
 
   // Filter and sort logic remains the same as your original
-  const filteredAudioFiles = audioFiles.filter((audio) => audio.fileName.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredAudioFiles = audioFiles.filter((audio) =>
+    audio.fileName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const sortedAudioFiles = [...filteredAudioFiles].sort((a, b) => {
     switch (sortBy) {
@@ -277,7 +279,7 @@ export default function AudioManager() {
                   className={`flex items-center justify-between p-3 rounded-md ${
                     currentPlayingId === audio.id
                       ? 'bg-primary/10 border border-primary'
-                      : 'bg-slate-50 hover:bg-slate-100'
+                      : 'bg-slate-50 dark:bg-black/50 dark:hover:bg-primary/10 hover:bg-slate-100 border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -383,7 +385,7 @@ export default function AudioManager() {
                           dateUploaded: new Date().toISOString().split('T')[0],
                           url: URL.createObjectURL(file),
                           createdAt: '',
-                          fileName: ''
+                          fileName: '',
                         })
                       }
                       title="Preview audio"
