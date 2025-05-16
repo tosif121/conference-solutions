@@ -5,6 +5,7 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   output: 'standalone',
+  poweredByHeader: false,
 };
 
 export default nextConfig;
