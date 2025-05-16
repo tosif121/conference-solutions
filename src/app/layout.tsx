@@ -2,7 +2,7 @@
 import './globals.css';
 import { Inter } from 'next/font/google';
 import { cn } from '@/lib/utils';
-import { ThemeProvider } from '../components/ThemeProvider';
+import { ThemeProvider } from '../components/Reusable/ThemeProvider';
 import dynamic from 'next/dynamic';
 import { Toaster } from 'react-hot-toast';
 import { usePathname } from 'next/navigation';

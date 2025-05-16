@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { X, FileAudio, Upload, Play, Pause, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import DeleteConfirmationModal from './DeleteConfirmationModal';
+import DeleteConfirmationModal from '../Reusable/DeleteConfirmationModal';
 import { audioService } from '@/utils/services';
 import moment from 'moment';
 

@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Mic, PhoneCall, Folder, Activity, Users, Clock, RefreshCw, PauseCircle, PhoneOff, MicOff } from 'lucide-react';
+import { Mic, PhoneCall, Folder, Activity, Users, Clock, RefreshCw, PauseCircle, MicOff } from 'lucide-react';
 import { conferenceCallService, channelService } from '@/utils/services';
 import toast from 'react-hot-toast';
 import { Input } from '@/components/ui/input';
 import moment from 'moment';
+import { SpinnerSkeleton } from '../Reusable/TableSkeleton';
 
 interface GuestChannel {
   name: string;
@@ -251,7 +252,6 @@ function AdminDashboard() {
               <span className="ml-2 text-green-500 text-sm">• Auto-refreshing every {refreshInterval}s</span>
             )}
             {isPaused && <span className="ml-2 text-orange-500 text-sm">• Auto-refresh paused</span>}
-            {isRefreshing && <span className="ml-2 text-blue-500 text-sm animate-pulse">• Refreshing data...</span>}
           </p>
         </div>
 
@@ -276,11 +276,13 @@ function AdminDashboard() {
           <Button
             variant="default"
             size="sm"
-            className="flex items-center gap-1"
+            className="flex items-center gap-1 transition-opacity duration-200"
             onClick={handleManualRefresh}
-            disabled={isLoading || isRefreshing}
+            disabled={isLoading}
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`w-4 h-4 transition-transform duration-500 ${isLoading || isRefreshing ? 'animate-spin' : ''}`}
+            />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
         </div>
@@ -365,10 +367,10 @@ function AdminDashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading && displayData.length === 0 && <div className="text-center py-4">Loading conference data...</div>}
+          {isLoading && displayData.length === 0 && <SpinnerSkeleton />}
 
           {!isLoading && displayData.length === 0 && (
-            <div className="text-center py-8 text-slate-500">No active conferences at the moment</div>
+            <div className="text-center py-3 text-slate-500">No active conferences at the moment</div>
           )}
 
           <div className="space-y-4 transition-opacity duration-300" style={{ opacity: isPending ? 0.7 : 1 }}>
@@ -379,7 +381,7 @@ function AdminDashboard() {
 
               return (
                 <div
-                  key={conference.bridge}
+                  key={`conference-${conference.bridge || conferenceIndex}`}
                   className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 transition-all duration-300"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2">
@@ -475,7 +477,7 @@ function AdminDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                       {conference.guestChannels.map((guest, guestIndex) => (
                         <div
-                          key={guest.channelId}
+                          key={`${guest.channelId || `guest-${conferenceIndex}-${guestIndex}`}`}
                           className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 transition-all duration-300"
                         >
                           <div className="flex items-center gap-2">
@@ -524,29 +526,43 @@ function AdminDashboard() {
                                 >
                                   {guest.isMuted ? 'Muted' : 'Unmuted'}
                                 </Badge>
-
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-6 w-6"
+                                  className="h-6 w-6 transition-colors hover:bg-blue-100 rounded-full"
                                   onClick={() =>
                                     handleToggleChannelMute(guest.channelId, guest.isMuted, conferenceIndex, guestIndex)
                                   }
                                   title={guest.isMuted ? 'Unmute' : 'Mute'}
                                 >
-                                  {!guest.isMuted ? <Mic className="h-3 w-3" /> : <MicOff className="h-3 w-3" />}
+                                  {!guest.isMuted ? (
+                                    <Mic className="h-3 w-3 text-blue-500" />
+                                  ) : (
+                                    <MicOff className="h-3 w-3 text-gray-500" />
+                                  )}
                                 </Button>
-
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-6 w-6"
+                                  className="h-6 w-6 transition-colors hover:bg-red-100 rounded-full"
                                   onClick={() =>
                                     handleHangupChannel(guest.channelId, guest.name, conferenceIndex, guestIndex)
                                   }
                                   title="hangup"
                                 >
-                                  <PhoneOff className="h-3 w-3" />
+                                  <svg
+                                    id="Layer_1"
+                                    data-name="Layer 1"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 122.88 122.88"
+                                  >
+                                    <title>end-call</title>
+                                    <path
+                                      fill="#ff3b30"
+                                      fillRule="evenodd"
+                                      d="M104.89,104.89a61.47,61.47,0,1,1,18-43.45,61.21,61.21,0,0,1-18,43.45ZM74.59,55.72a49.79,49.79,0,0,0-12.38-2.07A41.52,41.52,0,0,0,48,55.8a1.16,1.16,0,0,0-.74.67,4.53,4.53,0,0,0-.27,1.7,16.14,16.14,0,0,0,.2,2c.42,3,.93,6.8-2.42,8l-.22.07-12,3.24-.12,0A4.85,4.85,0,0,1,28,70a11.44,11.44,0,0,1-2.68-4.92,11,11,0,0,1,.42-6.93A23.69,23.69,0,0,1,29,52.39,21.52,21.52,0,0,1,36.55,46a42.74,42.74,0,0,1,10.33-3.6l.29-.07C49,42,51,41.48,53.08,41.17a62.76,62.76,0,0,1,25.14,1.59c6.87,2,13,5.43,16.8,10.7a13.88,13.88,0,0,1,2.92,9.59,12.64,12.64,0,0,1-4.88,8.43,1.34,1.34,0,0,1-1.26.28L78.6,68.38A3.69,3.69,0,0,1,75.41,66a7.73,7.73,0,0,1-.22-4,15.21,15.21,0,0,1,.22-1.6c.3-1.89.63-4.06-.89-4.72Z"
+                                    />
+                                  </svg>
                                 </Button>
                               </div>
                             )}

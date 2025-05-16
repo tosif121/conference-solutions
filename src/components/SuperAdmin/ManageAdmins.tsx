@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import toast from 'react-hot-toast';
 import CreateAdmin from './CreateAdmin';
 import { adminService } from '@/utils/services';
-import DataTable from './DataTable';
-import DeleteConfirmationModal from './DeleteConfirmationModal';
+import DataTable from '../Reusable/DataTable';
+import DeleteConfirmationModal from '../Reusable/DeleteConfirmationModal';
+import TableSkeleton from '../Reusable/TableSkeleton';
 
 export default function ManageAdmins() {
   interface Admin {
@@ -170,7 +171,7 @@ export default function ManageAdmins() {
 
           <CardContent>
             {isLoading ? (
-              <div className="py-8 text-center text-slate-500 dark:text-slate-400">Loading administrators...</div>
+              <TableSkeleton rowCount={10} columnCount={6} />
             ) : filteredAdmins.length > 0 ? (
               <DataTable data={filteredAdmins} columns={columns} searchPlaceholder="Search Admins..." />
             ) : (

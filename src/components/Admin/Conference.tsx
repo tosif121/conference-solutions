@@ -1,16 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Mic, PhoneCall, Folder, Activity, Edit, Plus } from 'lucide-react';
+import { Edit, Plus } from 'lucide-react';
 import CreateConferenceModal from './CreateConferenceModal';
 import AudioModal from './AudioModal';
-import DataTable from './DataTable';
+import DataTable from '../Reusable/DataTable';
 import { conferenceService } from '@/utils/services';
 import toast from 'react-hot-toast';
-import DeleteConfirmationModal from './DeleteConfirmationModal';
-import { Button } from './ui/button';
+import DeleteConfirmationModal from '../Reusable/DeleteConfirmationModal';
+import { Button } from '../ui/button';
+import TableSkeleton from '../Reusable/TableSkeleton';
 
 export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
@@ -208,7 +209,7 @@ export default function AdminDashboard() {
       <Card className="lg:col-span-2">
         <CardContent>
           {isLoading ? (
-            <div className="py-8 text-center text-slate-500 dark:text-slate-400">Loading conferences...</div>
+            <TableSkeleton rowCount={10} columnCount={7} />
           ) : conferencesData?.length > 0 ? (
             <DataTable data={conferencesData} columns={columns} searchPlaceholder="Search Conferences..." />
           ) : (
